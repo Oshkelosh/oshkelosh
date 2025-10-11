@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+
+{% block head %}
+<meta name="description" content="{{ config.seo_description }}">
+<title>{{ config.site_name }} | About</title>
+<link rel="icon" href="{{ url_for('static', filename=config.site_icon) }}">
+{% if config.theme == 'default' %}
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+{% else %}
+<link rel="stylesheet" href="{{ url_for('static', filename=config.theme + '.css') }}">
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<h1>About {{ config.site_name }}</h1>
+<p>{{ config.about }}</p>
+{% endblock %}

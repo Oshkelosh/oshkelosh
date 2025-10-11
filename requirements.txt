@@ -1,0 +1,9 @@
+flask
+flask-login
+flask-wtf
+
+python-dotenv
+redis
+
+bcrypt
+cryptography

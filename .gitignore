@@ -1,0 +1,5 @@
+.env
+data/
+oshkelosh.json
+
+__pycache__

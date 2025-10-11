@@ -1,0 +1,48 @@
+{
+    "theme":[
+        {
+            "value":"default",
+            "description":"Default theme for the 'Basic' style.",
+            "defaults":[
+                {
+                    "key":"static_path",
+                    "value":"theme/default/static",
+                    "description":"Static path for the 'Basic' theme.",
+                    "editable":"0"
+                },
+                {
+                    "key":"primary_color",
+                    "value":"rgba(231, 231, 222, 0.5)",
+                    "description":"Main theme color"
+                },
+                {
+                    "key":"secondary_color",
+                    "value":"rgba(223, 223, 199, 0.9)",
+                    "description":"Secondary theme color"
+                }
+            ]
+        },
+        {
+            "value":"dark",
+            "description":"For a 'Dark' version of the default theme",
+            "defaults":[
+                {
+                    "key":"static_path",
+                    "value":"theme/dark/static",
+                    "description":"Static path for the 'Dark' theme.",
+                    "editable":"0"
+                },
+                {
+                    "key":"primary_color",
+                    "value":"rgba(231, 231, 222, 0.5)",
+                    "description":"Main theme color"
+                },
+                {
+                    "key":"secondary_color",
+                    "value":"rgba(223, 223, 199, 0.9)",
+                    "description":"Secondary theme color"
+                }
+            ]
+        }
+    ]
+}

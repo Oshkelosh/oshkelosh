@@ -1,0 +1,17 @@
+{% extends 'basic/templates/base.html' %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('main.static', filename='style.css') }}">
+{% endblock %}
+
+{% block content %}
+<h1>Args view</h1>
+<h2>Site Dict</h2>
+{% for key,value in site.items() %}
+<p>{{ key }} : {{ value }}</p>
+{% endfor %}
+<h2>Style Dict</h2>
+{% for key,value in style.items() %}
+<p>{{ key }} : {{ value }}</p>
+{% endfor %}
+{% endblock %}
