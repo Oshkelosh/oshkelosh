@@ -33,7 +33,7 @@ Setup to be done via the .env file. Reference the .env_sample, or simply remove 
 
 3. Create a virtual environment and activate it:
    ```
-   python -m venv venv
+   python -m venv .venv
    source venv/bin/activate  # On Windows: venv\Scripts\activate
    ```
 
@@ -70,10 +70,9 @@ oshkelosh/
 ├── run.py                 # Oshkelosh entry point
 ├── app/
 │   ├── __init__.py
-│   ├── db.py              # SQLite DB manager
 │   ├── processor.py       # Integration manager(Suppliers, Payments and Services)
 │   │
-│   ├── main/              # Main blueprint (Index, Products/Catagories and login)
+│   ├── main/              # Main blueprint (Index, Products/Categories and login)
 │   │   ├── __init__.py
 │   │   ├── routes.py
 │   │   └── forms.py
@@ -86,22 +85,31 @@ oshkelosh/
 │   │   ├── routes.py
 │   │   └── forms.py
 │   │
-│   ├── suppliers/         # Product/Service suppliers (POD)
-│   ├── payments/          # Payment Processors
-│   ├── services/          # 3rd party services like email
+│   ├── addons/             # Externally loaded modules
+│   │   ├── __init__.py
+│   │   ├── styles/         # Templates and static files for 'main' and 'user' blueprints
+│   │   ├── payments/       # Scripts for interacting with payment proccessors
+│   │   ├── suppliers/      # Scripts for interacting with suppliers
+│   │   └── messaging/      # Scripts for sending communication with clients and admin
 │   │
-│   ├── templates/         # Jinja2 HTML templates
-│   └── static/            # Static files
+│   ├── database/
+│   │   ├── __init__.py
+│   │   ├── migrations.py   # Database creation
+│   │   ├── models.py       # Database interaction
+│   │   └── schema.py       # Databse setup/layout
+│   │
+│   └── helpers/
+│       └── __init__.py     # Various functions for static/template routes and site/style data
 │
 ├── tests/
 │
 ├── data/                  # SQLite DB (gitignored)
 │   ├── database.db
 │   └── images/            # Product images
-│── oshkelosh.json         # Oshkelosh setup data (gitignored)
+│
 ├── .env                   # SECRET_KEY and FLASK_ENV (gitignored)
 │
-├── config.py              # Flask environment configs
+├── flask_config.py              # Flask environment configs
 ├── requirements.txt
 └── README.md
 ```

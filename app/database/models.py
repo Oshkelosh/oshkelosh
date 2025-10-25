@@ -2,63 +2,188 @@ from .schema import schema
 from .schema import db_path
 from .migrations import get_columns
 
+from functools import lru_cache
+
 import sqlite3, os, datetime, time
 import json, string
 import keyword
+import importlib.util
+from pathlib import Path
 
 import bcrypt
-from cryptography.fernet import Fernet
-from dotenv import dotenv_values
+
 
 def safe_name(name):
     alphabet = string.ascii_lowercase
-    stripped = ''.join(letter if letter in alphabet else '_' for letter in name.lower())
+    stripped = "".join(letter if letter in alphabet else "_" for letter in name.lower())
+    return stripped
+
 
 def check_names(name):
-    name = safe_name(name)
-    while name.startswith('_'):
+    name = safe_name(name.lower())
+    if name == "":
+        raise ValueError("Name not accepted!")
+    while name.startswith("_"):
         name = name[1:]
-    while name.endswith('_'):
+    while name.endswith("_"):
         name = name[:-1]
-    while '__' in name:
-        name.replace('__','_')
-    if name == '':
-        raise ValueError('Name not accepted!')
+    while "__" in name:
+        name = name.replace("__", "_")
     if name.lower() in [word.lower() for word in keyword.kwlist]:
-        raise ValueError('Name not accepted!')
+        raise ValueError("Name not accepted!")
     return name
 
-def get_columns(schema, table_name):
-    if not table_name:
-        raise KeyError("Expected Table Name")
-    for table in schema:
-        if table["table_name"] == table_name:
-            columns = table["table_columns"].keys()
-            if "FOREIGN KEY" in columns:
-                columns.remove('FOREIGN KEY')
-    raise KeyError(f"Table {table_name} not in Schema")
 
 def dict_factory(cursor, row):
     return {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
 
-class User():
-    non_update = ['id', 'created_at', 'updated_at']
-    def __init__(self,**kwargs):
-        table_columns = get_columns(schema, "user_table")
-        missing = [arg for arg in table_columns if arg not in kwargs]
-        excess = [arg for arg in kwargs if arg not in table_columns]
-        if missing:
-            raise KeyError(f"Missing required arguments: {', '.join(missing)}")
+
+@lru_cache(maxsize=None)
+def conn_db():
+    db = sqlite3.connect(db_path, check_same_thread=False)
+    db.execute("PRAGMA journal_mode=WAL;")
+    db.execute("PRAGMA busy_timeout=5000;")
+    db.execute("PRAGMA synchronous=NORMAL;")
+    return db
+
+
+def set_defaults(default_list):
+    classes = {
+        "USER": User,
+        "PRODUCT": Product,
+        "IMAGE": Image,
+        "ORDER": Order,
+        "CATEGORY": Category,
+        "SUPPLIER": Supplier,
+        "REVIEW": Review,
+        "ADDON": Addon,
+        "SETUP": Config,
+    }
+    try:
+        for entry in default_list:
+            print(f"Setting default {entry['type']} for {entry['object_name']}")
+            if entry["type"] == "PLACEHOLDER":
+                objects = classes[entry["object_name"]].get()
+                difference = int(entry["amount"]) - len(objects)
+                if difference == 0:
+                    continue
+                for i in range(difference):
+                    classes[entry["object_name"]].new(**entry["data"])
+                continue
+            if entry["type"] in ["NOT NULL", "NOT_NULL"]:
+                objects = classes[entry["object_name"]].get()
+                exists = False
+                if objects:
+                    for set_object in objects:
+                        if getattr(set_object, entry["key"], None) == entry["value"]:
+                            exists = True
+
+                if exists:
+                    continue
+                object_data = entry["data"].copy()
+                object_data[entry["key"]] = entry["value"]
+                classes[entry["object_name"]].new(**object_data)
+    except Exception as e:
+        print(f"Failed loading defaults, {e}")
+        return False
+    return True
+
+
+class BaseClass:
+    non_update = None
+    table_name = None
+
+    def __init__(self, **kwargs):
+        if self.table_name is None:
+            raise ValueError("table_name must be set in subclass")
+        for key in kwargs:
+            if isinstance(kwargs[key], str) and kwargs[key].startswith(("{", "[")):
+                try:
+                    kwargs[key] = json.loads(kwargs[key])
+                except json.JSONDecodeError:
+                    pass
+            setattr(self, key, kwargs[key])
+
+    @classmethod
+    def new(cls, **kwargs):
+        if "id" in kwargs:
+            raise KeyError("Invalid ID key found")
+        if cls.table_name is None:
+            raise ValueError("table_name must be set in subclass")
+        table_columns = get_columns(cls.table_name, db_path)
+        excess = [col for col in kwargs if col not in table_columns]
         if excess:
             raise KeyError(f"Unknown arguments: {', '.join(excess)}")
-        for arg in table_columns:
-            if arg in ["shipping_address", "billing_address", "cart"]:
-                setattr(self, arg, json.loads(kwargs[arg]))
+        for key in kwargs:
+            if isinstance(kwargs[key], (dict, list)):
+                try:
+                    kwargs[key] = json.dumps(kwargs[key])
+                except (TypeError, ValueError):
+                    pass
+        with conn_db() as conn:
+            conn.row_factory = dict_factory
+            cursor = conn.cursor()
+            cursor.execute(
+                f"""
+                INSERT INTO {cls.table_name} ({", ".join(kwargs.keys())})
+                VALUES ({", ".join(["?" for _ in kwargs])})
+            """,
+                tuple(kwargs.values()),
+            )
+            conn.commit()
+            last_id = cursor.lastrowid
+            last_entry = cursor.execute(
+                f"SELECT * FROM {cls.table_name} WHERE id = ?", (last_id,)
+            ).fetchone()
+            return cls(**last_entry)
+
+    @classmethod
+    def get(cls, **kwargs):
+        with conn_db() as conn:
+            conn.row_factory = dict_factory
+            cursor = conn.cursor()
+
+            if not kwargs:
+                cursor.execute(f"SELECT * FROM {cls.table_name}")
             else:
-                setattr(self, arg, kwargs[arg])
-    
-    def getattr(self, key):
-        return getattr(self, key)
+                where_clause = " AND ".join(f"{key} = ?" for key in kwargs)
+                cursor.execute(
+                    f"SELECT * FROM {cls.table_name} WHERE {where_clause}",
+                    tuple(kwargs.values()),
+                )
+            data = cursor.fetchall()
+            if not data:
+                return []
+            return [cls(**entry) for entry in data]
+
+    def update(self, *keys):
+        update_data = {}
+        if not keys:
+            update_data = {
+                k: v for k, v in vars(self).items() if k not in self.non_update
+            }
+        else:
+            invalid = [k for k in keys if k in self.non_update or k not in vars(self)]
+            if invalid:
+                raise KeyError(f"Invalid keys for update: {', '.join(invalid)}")
+            update_data = {k: getattr(self, k) for k in keys}
+        if not update_data:
+            print(f"Nothing updated to {self.table_name}")
+            return True
+        set_clause = ", ".join(f"{k} = ?" for k in update_data)
+        params = tuple(update_data.values()) + self.id
+        with conn_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                f"UPDATE {self.table_name} SET {set_clause} WHERE id = ?", params
+            )
+            conn.commit()
+        return True
+
+
+class User(BaseClass):
+    table_name = "user_table"
+    non_update = ["id", "created_at", "updated_at"]
 
     def check_password(self, input_password):
         return bcrypt.checkpw(input_password.encode(), self.password.encode())
@@ -69,629 +194,320 @@ class User():
         self.password = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
         self.update()
         return True
-    
-    def update(self):
-        table_columns = get_columns(schema, "user_table")
-        for key in non_update:
-            table_columns.remove(key)
-
-        with sqlite3.connect(db_path) as conn:
-            cursor = conn.cursor()
-            query = f"UPDATE user_table SET {" = ?, ".join[table_columns]}, updated_at = TIMESTAMP WHERE id = ?"
-            data = [self.getattr(key) if key not in ["shipping_address", "billing_address", "cart"] else json.dumps(self.getattr(key)) for key in table_columns]
-            data.append(self.id)
-            cursor.execute(query,data)
-            conn.commit()
-        return True
-
-def get_user(**kwargs):
-    """Returns User by 'id' or 'email', or all"""
-    if kwargs is None:
-        users = []
-        with sqlite3.connect(db_path) as conn:
-            conn.row_factory = dict_factory
-            cursor = conn.cursor()
-            data = cursor.execute("SELECT * FROM user_table").fetchall()
-            if data:
-                for entry in data:
-                    users.append(User(**entry))
-        return users
-
-    if 'id' in kwargs:
-        with sqlite3.connect(db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            data = cursor.execute("SELECT * FROM user_table WHERE id=?",kwargs['id']).fetchone()
-            if data:
-                user_data={key: data[key] for key in data.keys()}
-                return User(**user_data)
-
-    if 'email' in kwargs:
-        with sqlite3.connect(db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            data = cursor.execute("SELECT * FROM user_table WHERE id=?",kwargs['email']).fetchone()
-            if data:
-                user_data={key: data[key] for key in data.keys()}
-                return User(**user_data)
-    else:
-        raise KeyError(f"Incorrect user details. Required 'id' or 'email' not: {", ".join(kwargs.keys())}")
 
 
-def add_user(**kwargs):
-    """Kwargs: ["name","surname","email","phone","password","shipping_address","billing_address"]"""
-    table_columns = get_columns(schema, "user_table")
-    for entry in ["id", "role", "cart"]:
-        table_columns.remove(entry)
-        
-    missing = [arg for arg in table_columns if arg not in kwargs]
-    if missing:
-        raise KeyError(f"Missing required arguments: {', '.join(missing)}")
+class Product(BaseClass):
+    table_name = "product_table"
+    non_update = [
+        "id",
+        "product_id",
+        "supplier_id",
+        "variant_of_id",
+        "created_at",
+        "updated_at",
+    ]
 
-    user_data = {key: kwargs[key] for key in table_columns}
-    user_data["password"] = bcrypt.hashpw(kwargs["password"].encode(), bcrypt.gensalt()).decode()
-    user_data["role"] = "CLIENT"
-    user_data["shipping_address"] = json.dumps(kwargs["shipping_address"])
-    user_data["billing_address"] = json.dumps(kwargs["billing_address"])
-    user_data["cart"] = []
-    with sqlite3.connect(db_path) as conn:
-        cursor = conn.cursor()
-        cursor.execute(f"""
-            INSERT INTO user_table ({', '.join(user_data.keys())})
-            VALUES ({", ".join(['?' for _ in user_data])})
-        """, tuple(user_data.values()))
-        conn.commit()
-
-
-
-class Product():
-    non_update = ['id', 'product_id', 'supplier_id', 'variant_of_id', 'created_at', 'updated_at']
-    def __init__(self, **kwargs):
-        table_columns = get_columns(schema, "product_table")
-        missing = [arg for arg in table_columns if arg not in kwargs]
-        excess = [arg for arg in kwargs if arg not in table_columns]
-        if missing:
-            raise KeyError(f"Missing required arguments: {', '.join(missing)}")
-        if excess:
-            raise KeyError(f"Unknown arguments: {', '.join(excess)}")
-        for arg in table_columns:
-            setattr(self, arg, kwargs[arg])
-
-    def getattr(self, key):
-        return getattr(self, key)
-
-    def update(self):
-        table_columns = get_columns(schema, "product_table")
-        for key in self.non_update:
-            table_columns.remove(key)
-
-        with sqlite3.connect(db_path) as conn:
-            cursor = conn.cursor()
-            query = f"UPDATE product_table SET {" = ?, ".join[table_columns]}, updated_at = TIMESTAMP WHERE id = ?"
-            data = [self.getattr(key) for key in table_columns]
-            data.append(self.id)
-            cursor.execute(query,data)
-            conn.commit()
-        return True
-    
     def add_category(self, **kwargs):
         pass
+
     def get_categories(self):
         pass
+
     def delete_category(self, **kwargs):
         pass
 
     def get_supplier(self):
         pass
-      
-def get_product(**kwargs):
-    """Returns Product by 'id', 'product_id', 'supplier_id', 'category_id', 'variant_of_id' or all"""
-    products = []
-    with sqlite3.connect(db_path) as conn:
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        if kwargs is None:
-            data = cursor.execute("SELECT * FROM product_table").fetchall()
-            if data:
-                for entry in data:
-                    product_data={key: entry[key] for key in entry.keys()}
-                    products.append(Product(**product_data))
-        elif 'id' in kwargs:
-            data = cursor.execute("SELECT * FROM product_table WHERE id=?",kwargs['id']).fetchone()
-            if data:
-                product_data={key: data[key] for key in data.keys()}
-                products = Product(**product_data)
-        elif 'product_id':
-            data = cursor.execute("SELECT * FROM product_table WHERE product_id=?",kwargs['product_id']).fetchone()
-            if data:
-                product_data={key: data[key] for key in data.keys()}
-                products = Product(**product_data)
-        elif 'variant_of_id':
-            data = cursor.execute("SELECT * FROM product_table WHERE variant_of_id=?",kwargs['variant_of_id']).fetchone()
-            if data:
-                product_data={key: data[key] for key in data.keys()}
-                products = Product(**product_data)
-        elif 'supplier_id' in kwargs:
-            data = cursor.execute("SELECT * FROM product_table WHERE supplier_id = ?", kwargs["supplier_id"]).fetchall()
-            if data:
-                for entry in data:
-                    products.append(Product(**product_data))
-        elif 'category_id' in kwargs:
-            pass
-
-    return products
 
 
-def add_product(**kwargs):
-    """Kwargs: ["name","surname","email","phone","password","shipping_address","billing_address"]"""
-    table_columns = get_columns(schema, "product_table")
-    for entry in ["id", "role", "cart"]:
-        table_columns.remove(entry)
-        
-    missing = [arg for arg in table_columns if arg not in kwargs]
-    if missing:
-        raise KeyError(f"Missing required arguments: {', '.join(missing)}")
+class Image(BaseClass):
+    table_name = "image_table"
+    non_update = ["id", "product_id"]
 
-    user_data = {key: kwargs[key] for key in table_columns}
-    user_data["password"] = bcrypt.hashpw(kwargs["password"].encode(), bcrypt.gensalt()).decode()
-    user_data["role"] = "CLIENT"
-    user_data["shipping_address"] = json.dumps(kwargs["shipping_address"])
-    user_data["billing_address"] = json.dumps(kwargs["billing_address"])
-    user_data["cart"] = []
-    with sqlite3.connect(db_path) as conn:
-        cursor = conn.cursor()
-        cursor.execute(f"""
-            INSERT INTO product_table ({", ".join(user_data.keys())})
-            VALUES ({", ".join(['?' for _ in user_data])})
-        """, tuple(user_data.values()))
-        conn.commit()
-
-
-    
-class Image():
-    non_update = ['id', 'product_id']
-    def __init__(self, **kwargs):
-        table_columns = get_columns(schema, "image_table")
-        missing = [arg for arg in table_columns if arg not in kwargs]
-        excess = [arg for arg in kwargs if arg not in table_columns]
-        if missing:
-            raise KeyError(f"Missing required arguments: {', '.join(missing)}")
-        if excess:
-            raise KeyError(f"Unknown arguments: {', '.join(excess)}")
-        for arg in table_columns:
-            setattr(self, arg, kwargs[arg])
-
-    def getattr(self, key):
-        return getattr(self, key)
-
-    def update(self):
-        table_columns = get_columns(schema, "image_table")
-        for key in non_update:
-            table_columns.remove(key)
-        with sqlite3.connect(db_path) as conn:
-            cursor = conn.cursor()
-            query = f"UPDATE image_table SET {" = ?, ".join[table_columns]} WHERE id = ?"
-            data = [self.getattr(key) for key in table_columns]
-            data.append(self.id)
-            cursor.execute(query,data)
-            conn.commit()
-        return True
-
-      
     def delete(self):
-        with sqlite3.connect(db_path) as connection:
+        with conn_db() as connection:
             query = "DELETE FROM image_table WHERE id = ?"
             data = [self.id]
             cursor = connection.cursor()
-            cursor.execute(query,data)
+            cursor.execute(query, data)
             connection.commit()
 
 
-      
-class Order():
-    non_update = ['id', 'user_id', 'created_at', 'updated_at']
-    def __init__(self, **kwargs):
-        table_columns = get_columns(schema, "order_table")
-        missing = [arg for arg in table_columns if arg not in kwargs]
-        excess = [arg for arg in kwargs if arg not in table_columns]
-        if missing:
-            raise KeyError(f"Missing required arguments: {', '.join(missing)}")
-        if excess:
-            raise KeyError(f"Unknown arguments: {', '.join(excess)}")
-        for arg in table_columns:
-            setattr(self, arg, kwargs[arg])
+class Order(BaseClass):
+    table_name = "order_table"
+    non_update = ["id", "user_id", "created_at", "updated_at"]
 
-    def getattr(self, key):
-        return getattr(self, key)
-
-    def update(self):
-        table_columns = get_columns(schema, "order_table")
-        for key in non_update:
-            table_columns.remove(key)
-        with sqlite3.connect(db_path) as conn:
-            cursor = conn.cursor()
-            query = f"UPDATE order_table SET {" = ?, ".join[table_columns]}, updated_at = TIMESTAMP WHERE id = ?"
-            data = [self.getattr(key) for key in table_columns]
-            data.append(self.id)
-            cursor.execute(query,data)
-            conn.commit()
-        return True
-    
     def add_product(self, **kwargs):
         pass
+
     def get_products(self, **kwargs):
         pass
+
     def update_product(self, **kwargs):
         pass
-    
+
     def add_payment(self, **kwargs):
         pass
+
     def get_payments(self, **kwargs):
         pass
+
     def update_payment_status(self, **kwargs):
         pass
 
     def add_shipping(self, **kwargs):
         pass
+
     def get_shipping(self, **kwargs):
         pass
+
     def update_shipping_status(self, **kwargs):
         pass
 
 
+class Category(BaseClass):
+    table_name = "category_table"
+    non_update = ["id"]
 
-
-
-
-class Category():
-    def __init__(self, **kwargs):
-        table_columns = get_columns(schema, "category_table")
-        missing = [arg for arg in table_columns if arg not in kwargs]
-        excess = [arg for arg in kwargs if arg not in table_columns]
-        if missing:
-            raise KeyError(f"Missing required arguments: {', '.join(missing)}")
-        if excess:
-            raise KeyError(f"Unknown arguments: {', '.join(excess)}")
-        for arg in table_columns:
-            setattr(self, arg, kwargs[arg])
-            
-    def getattr(self, key):
-        return getattr(self, key)
-
-    def update(self, *args):
-        table_columns = get_columns(schema, "category_table")
-        table_columns.remove("id")  #Exclude 'id' as not updateable
-
-        if not args:
-            with sqlite3.connect(db_path) as conn:
-                cursor = conn.cursor()
-                query = f"UPDATE user_table SET {"=?, ".join[table_columns]}"
-                data = [self.getattr(key) for key in table_columns]
-                cursor.execute(query,data)
-                conn.commit()
-            return True
-
-        not_common = [key for key in args if key not in table_columns]
-        if not_common:
-            raise KeyError(f"Key not recognized: {", ".join[not_common]}")
-
-        with sqlite3.connect(db_path) as conn:
-            cursor = conn.cursor()
-            query = f"UPDATE user_table SET {"=?, ".join[args]}"
-            data = [self.getattr(key) for key in args]
-            cursor.execute(query,data)
-            conn.commit()
-        return True
-        
     def delete(self):
-        with sqlite3.connect(db_path) as connection:
+        with conn_db() as connection:
             query = "DELETE FROM category_table WHERE id=?"
             data = [self.id]
             cursor = connection.cursor()
-            cursor.execute(query,data)
+            cursor.execute(query, data)
             connection.commit()
-    
-def get_categories():
-    pass
 
 
-            
-class Supplier():
-    def __init__(self, **kwargs):
-        table_columns = get_columns(schema, "supplier_table")
-        missing = [arg for arg in table_columns if arg not in kwargs]
-        excess = [arg for arg in kwargs if arg not in table_columns]
-        if missing:
-            raise KeyError(f"Missing required arguments: {', '.join(missing)}")
-        if excess:
-            raise KeyError(f"Unknown arguments: {', '.join(excess)}")
-        for arg in table_columns:
-            setattr(self, arg, kwargs[arg])
-            
-    def getattr(self, key):
-        return getattr(self, key)
+class Supplier(BaseClass):
+    table_name = "supplier_table"
+    non_update = ["id", "created_at", "updated_at"]
 
-    def update(self, *args):
-        table_columns = get_columns(schema, "supplier_table")
-        table_columns.remove("id")  #Exclude 'id' as not updateable
-        self.updated_at = int(time.time())
-
-        if not args:
-            with sqlite3.connect(db_path) as conn:
-                cursor = conn.cursor()
-                query = f"UPDATE user_table SET {"=?, ".join[table_columns]}"
-                data = [self.getattr(key) for key in table_columns]
-                cursor.execute(query,data)
-                conn.commit()
-            return True
-
-        not_common = [key for key in args if key not in table_columns]
-        if not_common:
-            raise KeyError(f"Key not recognized: {", ".join[not_common]}")
-
-        args = list(args).append('updated_at')
-        with sqlite3.connect(db_path) as conn:
-            cursor = conn.cursor()
-            query = f"UPDATE user_table SET {"=?, ".join[args]}"
-            data = [self.getattr(key) for key in args]
-            cursor.execute(query,data)
-            conn.commit()
-        return True
-    
     def get_products(self):
         pass
 
 
+class PaymentProcessor(BaseClass):
+    table_name = "payment_processor_table"
+    non_update = ["id", "created_at", "updated_at"]
 
 
+class Review(BaseClass):
+    table_name = "review_table"
+    non_update = ["id", "product_id", "user_id", "created_at", "updated_at"]
 
-class PaymentProcessor():
-    def __init__(self, **kwargs):
-        table_columns = get_columns(schema, "payment_processor_table")
-        missing = [arg for arg in table_columns if arg not in kwargs]
-        excess = [arg for arg in kwargs if arg not in table_columns]
-        if missing:
-            raise KeyError(f"Missing required arguments: {', '.join(missing)}")
+
+class Addon(BaseClass):
+    table_name = "addon_table"
+    non_update = ["id", "name", "created_at", "updated_at"]
+
+    @classmethod
+    def new(cls, **kwargs):
+        if "id" in kwargs:
+            raise KeyError("Invalid ID key found")
+        if cls.table_name is None:
+            raise ValueError("table_name must be set in subclass")
+        table_columns = get_columns(cls.table_name, db_path)
+        excess = [col for col in kwargs if col not in table_columns]
         if excess:
-            raise KeyError(f"Unknown arguments: {', '.join(excess)}")
-        for arg in table_columns:
-            setattr(self, arg, kwargs[arg])
-
-    def getattr(self, key):
-        return getattr(self, key)
-
-    def update(self, *args):
-        table_columns = get_columns(schema, "payment_processor_table")
-        table_columns.remove("id")  #Exclude 'id' as not updateable
-        self.updated_at = int(time.time())
-
-        if not args:
-            with sqlite3.connect(db_path) as conn:
-                cursor = conn.cursor()
-                query = f"UPDATE user_table SET {"=?, ".join[table_columns]}"
-                data = [self.getattr(key) for key in table_columns]
-                cursor.execute(query,data)
-                conn.commit()
-            return True
-
-        not_common = [key for key in args if key not in table_columns]
-        if not_common:
-            raise KeyError(f"Key not recognized: {", ".join[not_common]}")
-
-        args = list(args).append('updated_at')
-        with sqlite3.connect(db_path) as conn:
+            raise KeyError(
+                f"Table Columns not registered for {cls.table_name}: {', '.join(excess)}"
+            )
+        for key in kwargs:
+            if isinstance(kwargs[key], (dict, list)):
+                try:
+                    kwargs[key] = json.dumps(kwargs[key])
+                except (TypeError, ValueError):
+                    pass
+        with conn_db() as conn:
+            conn.row_factory = dict_factory
             cursor = conn.cursor()
-            query = f"UPDATE user_table SET {"=?, ".join[args]}"
-            data = [self.getattr(key) for key in args]
-            cursor.execute(query,data)
+            cursor.execute(
+                f"""
+                INSERT INTO {cls.table_name} ({", ".join(kwargs.keys())})
+                VALUES ({", ".join(["?" for _ in kwargs])})
+            """,
+                tuple(kwargs.values()),
+            )
             conn.commit()
-        return True
+            last_id = cursor.lastrowid
 
-def get_payment_processors():
-    pass
+            addon_path = (
+                Path("app") / "addons" / kwargs["type"].lower() / kwargs["name"].lower()
+            )
+            module_name = f"{kwargs['type'].lower()}.{kwargs['name'].lower()}"
+            spec = importlib.util.spec_from_file_location(
+                module_name, addon_path / "__init__.py"
+            )
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            default_list = module.default_list
+            for i in range(len(default_list)):
+                default_list[i]["data"]["addon_id"] = last_id
 
-        
-class Review():
+            print(f"Setting Addon {kwargs['name']} defaults")
+            if not set_defaults(default_list):
+                raise ValueError(f"Defaults for Addon: {kwargs['name']} failed to set")
+
+            last_entry = cursor.execute(
+                f"SELECT * FROM {cls.table_name} WHERE id = ?", (last_id,)
+            ).fetchone()
+            return cls(**last_entry)
+
+
+class ConfigData:
     def __init__(self, **kwargs):
-        table_columns = get_columns(schema, "review_table")
-        missing = [arg for arg in table_columns if arg not in kwargs]
-        excess = [arg for arg in kwargs if arg not in table_columns]
-        if missing:
-            raise KeyError(f"Missing required arguments: {', '.join(missing)}")
-        if excess:
-            raise KeyError(f"Unknown arguments: {', '.join(excess)}")
-        for arg in table_columns.keys():
-            setattr(self, arg, kwargs[arg])
-
-    def getattr(self, key):
-        return getattr(self, key)
-
-    def update(self, *args):
-        table_columns = get_columns(schema, "review_table")
-        table_columns.remove("id")  #Exclude 'id' as not updateable
-        self.updated_at = int(time.time())
-
-        if not args:
-            with sqlite3.connect(db_path) as conn:
-                cursor = conn.cursor()
-                query = f"UPDATE user_table SET {"=?, ".join[table_columns]}"
-                data = [self.getattr(key) for key in table_columns]
-                cursor.execute(query,data)
-                conn.commit()
-            return True
-
-        not_common = [key for key in args if key not in table_columns]
-        if not_common:
-            raise KeyError(f"Key not recognized: {", ".join[not_common]}")
-        args = list(args).append('updated_at')
-        with sqlite3.connect(db_path) as conn:
-            cursor = conn.cursor()
-            query = f"UPDATE user_table SET {"=?, ".join[args]}"
-            data = [self.getattr(key) for key in args]
-            cursor.execute(query,data)
-            conn.commit()
-        return True
-
-def add_review(product_id):
-    pass
-
-def get_reviews(product_id):
-    if product_id is None:
-        raise KeyError('Expected product_id')
-    reviews = []
-    with sqlite3.connect(db_path) as conn:
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        data = cursor.execute("SELECT * FROM review_table WHERE product_id=?",product_id).fetchall()
-        if data:
-            for entry in data:
-                reviews.append(Review(**product_data))
-    return reviews
-
-class Addon():
-    non_update = ['id', 'name', 'created_at', 'updated_at']
-    def __init__(self,**kwargs):
-        table_columns = get_columns(schema, "addon_table")
-        missing = [arg for arg in table_columns if arg not in kwargs]
-        excess = [arg for arg in kwargs if arg not in table_columns]
-        if missing:
-            raise KeyError(f"Missing required arguments: {', '.join(missing)}")
-        if excess:
-            raise KeyError(f"Unknown arguments: {', '.join(excess)}")
-        for arg in table_columns:
-            setattr(self, arg, kwargs[arg])
-    
-    def getattr(self, key):
-        return getattr(self, key)
-    
-    def update(self):
-        table_columns = get_columns(schema, "addon_table")
-        for key in non_update:
-            table_columns.remove(key)
-
-        with sqlite3.connect(db_path) as conn:
-            cursor = conn.cursor()
-            query = f"UPDATE addon_table SET {" = ?, ".join[table_columns]}, updated_at = TIMESTAMP WHERE id = ?"
-            data = [self.getattr(key) for key in table_columns]
-            data.append(self.id)
-            cursor.execute(query,data)
-            conn.commit()
-        return True
-
-def get_addons():
-    pass
-
-class ConfigData():
-    def __init__(self, **kwargs):
-        self._parent = kwargs.pop('parent', None)
-        self._attr_name = kwargs.pop('attr_name', None)
-        self._value = kwargs.pop('value')
+        self._parent = kwargs.pop("parent", None)
+        self._attr_name = kwargs.pop("attr_name", None)
+        self._value = kwargs.pop("value")
         for arg in kwargs.keys():
             setattr(self, arg, kwargs[arg])
-            
+
     def __getattr__(self, name):
         return getattr(self._value, name)
+
     def __str__(self):
         return str(self._value)
+
     def __repr__(self):
         return repr(self._value)
 
     def delete(self):
-        with sqlite3.connect(db_path) as connection:
+        with conn_db() as connection:
             query = "DELETE FROM setup_table WHERE id=?"
             data = [self.id]
             cursor = connection.cursor()
-            cursor.execute(query,data)
+            cursor.execute(query, data)
             connection.commit()
         if self._parent and self._attr_name:
             delattr(self._parent, self._attr_name)
-        
 
-class Config():
-    non_update = ['id', 'key', 'addon_id', 'created_at', 'updated_at']
-    def __init__(self, addon_id = None):
-        self.type = 'ADDON' if addon_id else 'GLOBAL'
+
+class Config:
+    table_name = "setup_table"
+    non_update = ["id", "key", "addon_id", "created_at", "updated_at"]
+
+    def __init__(self, **kwargs):
+        self.type = "ADDON" if kwargs["addon_id"] is not None else "GLOBAL"
+        if len(kwargs) > 1 and "key" in kwargs:
+            key = kwargs.pop("key")
+            self.set_config(key, **kwargs)
+
+    @classmethod
+    def new(cls, **kwargs):
+        with conn_db() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute(
+                f"INSERT INTO setup_table ({', '.join(kwargs.keys())}) VALUES ({', '.join(['?' for _ in kwargs])})",
+                tuple(kwargs.values()),
+            )
+            conn.commit()
+
+    @classmethod
+    def get(cls, **kwargs):
+        """Returns specific Config setting data"""
+        with conn_db() as conn:
+            conn.row_factory = dict_factory
+            cursor = conn.cursor()
+            clauses = [f"{key} = ?" for key in kwargs]
+            params = tuple(kwargs.values())
+            if "addon_id" not in kwargs:
+                clauses.append("addon_id IS NULL")
+            cursor.execute(
+                f"SELECT * from {cls.table_name} WHERE {', '.join(clauses)}", params
+            )
+            data = cursor.fetchall()
+            if not data:
+                return []
+            return [ConfigData(**entry) for entry in data]
 
     def set_config(self, key, **kwargs):
         setattr(self, key, ConfigData(parent=self, attr_name=key, **kwargs))
 
     def list_keys(self):
-        return [key for key in self.__dict__.keys() if key != 'type']
+        return [key for key in vars(self).keys() if key != "type"]
 
     def data(self):
-        """Returns only 'value' from ConfigData, instead of all meta-data"""
+        """Returns only 'key':'value' from ConfigData, instead of all meta-data"""
         data = {}
         for key in self.list_keys():
             data[key] = str(getattr(self, key))
         return data
-            
+
     def update(self):
         success = True
-        data = {}
-        for key, value in self.__dict__.items():
-            data['key'] = key
-            for meta_key, meta_value in value.__dict__.items():
-                data[meta_key] = meta_value
+        data = []
+        for key, value in vars(self).items():
+            key_data = {"key": key}
+            for meta_key, meta_value in vars(value).items():
+                key_data[meta_key] = meta_value
+            data.append(key_data)
         try:
-            with sqlite3.connect(db_path) as conn:
+            with conn_db() as conn:
                 cursor = conn.cursor()
-                set_clauses = []
-                params = []
-                for key, value in data.items():
-                    if key in self.non_update:  #Keys not no be updated
-                        continue
-                    set_clauses.append(f"{key} = ?")
-                    params.append(value)
-                where_clause = 'WHERE id = ?'
-                params.append(data['id'])
-                query = f'UPDATE setup_table SET {set_query}, updated_at = CURRENT_TIMESTAMP {where_clause}'
-                cursor.execute(query, params)
-                if cursor.rowcount == 0:
-                    success = False
+                for entry in data:
+                    set_clauses = []
+                    params = []
+                    for key, value in entry.items():
+                        if key in self.non_update:  # Keys not no be updated
+                            continue
+                        set_clauses.append(f"{key} = ?")
+                        params.append(value)
+                    where_clause = "WHERE id = ?"
+                    params.append(data["id"])
+                    query = f"UPDATE setup_table SET {set_clauses}, updated_at = CURRENT_TIMESTAMP {where_clause}"
+                    cursor.execute(query, params)
+                    if cursor.rowcount == 0:
+                        success = False
                 conn.commit()
         except sqlite3.Error as e:
-            print(f'Config update error: {e}')
+            print(f"Config update error: {e}")
             success = False
         return success
-    
-def get_config(addon_name = None, addon_id = None):
+
+
+def get_config(addon_name=None, addon_id=None):
     config = None
 
-    with sqlite3.connect(db_path) as conn:
+    with conn_db() as conn:
         conn.row_factory = dict_factory
         cursor = conn.cursor()
-        
+
         if addon_name:
-            data = cursor.execute("SELECT * FROM addon_table WHERE name=?",(addon_name,)).fetchone()
+            data = cursor.execute(
+                "SELECT * FROM addon_table WHERE name=?", (addon_name,)
+            ).fetchone()
             if data:
-                addon_id = data['id']
+                addon_id = data["id"]
             else:
                 raise KeyError(f"Addon '{addon_name}' not installed")
 
         query = f"SELECT * FROM setup_table WHERE addon_id {'= ?' if addon_id else 'IS NULL'}"
         params = (addon_id,) if addon_id else ()
-        data = cursor.execute(query,params).fetchall()
+        data = cursor.execute(query, params).fetchall()
         if data:
-            config = Config(addon_id)
+            config = Config(addon_id=addon_id)
             for entry in data:
-                config_key = entry.pop('key')
+                config_key = entry.pop("key")
                 config.set_config(config_key, **entry)
         else:
-            raise ValueError('Setup Table not found! Please restart the Oshkelosh app.')
+            raise ValueError("Setup Table not found! Please restart the Oshkelosh app.")
     return config
 
+
 def set_configs():
-    addon = {}
-    with sqlite3.connect(db_path) as conn:
+    addon = []
+    with conn_db() as conn:
         conn.row_factory = dict_factory
         cursor = conn.cursor()
-        data = cursor.execute("SELECT * FROM addon_table")
+        data = cursor.execute("SELECT * FROM addon_table").fetchall()
         if data:
             for entry in data:
-                addon[entry["id"]] = entry["name"]
+                addon.append(entry)
     configs = {}
     configs["site_config"] = get_config()
-    for id, name in addon.items():
-        configs[f'{name}_style'] = get_config(addon_id=id)
+    for entry in addon:
+        configs[f"{entry['name'].lower()}_{entry['type'].lower()}"] = get_config(
+            addon_id=entry["id"]
+        )
     return configs
-
