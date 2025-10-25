@@ -34,6 +34,36 @@ def about():
         helpers.template_route("main/about.html"), site=helpers.site_data()
     )
 
+@bp.route("/category/<category_id>")
+def category(category_id):
+    category = models.Category.get(category_id=category_id)
+    category = category[0].data()
+    products = category.products()
+    products = [entry.data() for entry in products]
+    random.shuffel(products)
+    categories = models.Category.get()
+    categories = [entry.data() for entry in categories]
+    return render_tamplate(
+        helpers.template_route('main/category.html'),
+        site = helpers.site_data(),
+        category = category,
+        products = products,
+        categories = categories
+    )
+
+@bp.route('product/<product_id>')
+def product(id):
+    product = model.Product.get(id=id)
+    product = product[0].data()
+    categories = modles.Category.get()
+    categories = [entry.data() for entry in categories]
+    return render_template(
+        helpers.template_route('main/product.html'),
+        site = helpers.site_data(),
+        product = product,
+        categories = categories
+    )
+
 
 @bp.route("/static/<path:filename>")
 def static(filename):
