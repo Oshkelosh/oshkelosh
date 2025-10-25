@@ -1,0 +1,12 @@
+{% extends 'basic/templates/base.html' %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('main.static', filename='style.css') }}">
+{% endblock %}
+
+{% block content %}
+	<div class="header">
+	</div>
+	<h1>About {{ site.site_name }}</h1>
+	<p>{{ site.about|replace("\n","</p><p>")|safe }}</p>
+{% endblock %}
