@@ -1,0 +1,10 @@
+{% extends 'basic/templates/base.html' %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('main.static', filename='style.css') }}">
+{% endblock %}
+
+{% block content %}
+	<h1>Logout</h1>
+	<p>You have been logged out.</p>
+{% endblock %}

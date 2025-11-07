@@ -1,6 +1,6 @@
 from flask import Flask
+from flask_login import LoginManager
 
-# from flask_login import LoginManager
 import jinja2
 import redis
 
@@ -11,7 +11,6 @@ import json
 
 from .database import migrations, schema, models
 
-# login = LoginManager()
 
 
 def create_app():
@@ -25,6 +24,15 @@ def create_app():
     app = Flask(__name__, static_folder=None, static_url_path=None)
     app.config.from_object(flask_configs[env_config["FLASK_ENV"]])
     flask_configs[env_config["FLASK_ENV"]].init_app(env_config["APP_SECRET"])
+
+    login_manager = LoginManager()
+    login_manager.init_app(app)
+    login_manager.login_view = 'user.login'
+
+    @login_manager.user_loader
+    def load_user(user_id: int):
+        users = models.User.get(id = user_id)
+        return users[0] if users else None
 
     print("Setting up Redis")
     app.redis = redis.Redis(host="localhost", port=6379, db=0)

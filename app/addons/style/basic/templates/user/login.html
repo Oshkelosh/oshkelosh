@@ -1,0 +1,32 @@
+{% extends 'basic/templates/base.html' %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('main.static', filename='style.css') }}">
+{% endblock %}
+
+{% block content %}
+<h1>Login</h1>
+<form method="POST">
+    {{ login_form.hidden_tag() }}
+    <table style="margin:auto">
+        <tr>
+            <td>{{ login_form.email.label }}</td>
+            <td>
+                {{ login_form.email(class="form-control") }}
+                {% for error in login_form.email.errors %}<span class="error">{{ error }}</span>{% endfor %}
+            </td>
+        </tr>
+        <tr>
+            <td>{{ login_form.password.label }}</td>
+            <td>
+                {{ login_form.password(class="form-control") }}
+                {% for error in login_form.password.errors %}<span class="error">{{ error }}</span>{% endfor %}
+            </td>
+        </tr>
+        <tr>
+            <td colspan="2">{{ login_form.submit(class="btn btn-primary") }}</td>
+        </tr>
+    </table>
+</form>
+<br>
+{% endblock %}

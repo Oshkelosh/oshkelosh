@@ -2,6 +2,8 @@ from .schema import schema
 from .schema import db_path
 from .migrations import get_columns
 
+from flask_login import UserMixin, login_manager
+
 from functools import lru_cache
 
 import sqlite3, os, datetime, time
@@ -11,6 +13,8 @@ import importlib.util
 from pathlib import Path
 
 import bcrypt
+
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 
 def safe_name(name):
@@ -90,10 +94,10 @@ def set_defaults(default_list):
 
 
 class BaseClass:
-    non_update = None
-    table_name = None
+    non_update: List[str] = []
+    table_name: Optional[str] = None
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         if self.table_name is None:
             raise ValueError("table_name must be set in subclass")
         for key in kwargs:
@@ -105,7 +109,7 @@ class BaseClass:
             setattr(self, key, kwargs[key])
 
     @classmethod
-    def new(cls, **kwargs):
+    def new(cls, **kwargs) -> 'BaseClass':
         if "id" in kwargs:
             raise KeyError("Invalid ID key found")
         if cls.table_name is None:
@@ -138,7 +142,7 @@ class BaseClass:
             return cls(**last_entry)
 
     @classmethod
-    def get(cls, **kwargs):
+    def get(cls, **kwargs) -> List['BaseClass']:
         with conn_db() as conn:
             conn.row_factory = dict_factory
             cursor = conn.cursor()
@@ -156,8 +160,8 @@ class BaseClass:
                 return []
             return [cls(**entry) for entry in data]
 
-    def update(self, *keys):
-        update_data = {}
+    def update(self, *keys) -> bool:
+        update_data: Dict[str, Any] = {}
         if not keys:
             update_data = {
                 k: v for k, v in vars(self).items() if k not in self.non_update
@@ -171,7 +175,7 @@ class BaseClass:
             print(f"Nothing updated to {self.table_name}")
             return True
         set_clause = ", ".join(f"{k} = ?" for k in update_data)
-        params = tuple(update_data.values()) + self.id
+        params = tuple(update_data.values()) + (getattr(self, 'id'),)
         with conn_db() as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -181,7 +185,7 @@ class BaseClass:
         return True
 
 
-class User(BaseClass):
+class User(UserMixin, BaseClass):
     table_name = "user_table"
     non_update = ["id", "created_at", "updated_at"]
 
@@ -194,6 +198,7 @@ class User(BaseClass):
         self.password = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
         self.update()
         return True
+
 
 
 class Product(BaseClass):
@@ -227,7 +232,7 @@ class Image(BaseClass):
     def delete(self):
         with conn_db() as connection:
             query = "DELETE FROM image_table WHERE id = ?"
-            data = [self.id]
+            data = [getattr(self, 'id')]
             cursor = connection.cursor()
             cursor.execute(query, data)
             connection.commit()
@@ -272,7 +277,7 @@ class Category(BaseClass):
     def delete(self):
         with conn_db() as connection:
             query = "DELETE FROM category_table WHERE id=?"
-            data = [self.id]
+            data = [getattr(self, 'id')]
             cursor = connection.cursor()
             cursor.execute(query, data)
             connection.commit()
@@ -454,7 +459,7 @@ class Config:
                         set_clauses.append(f"{key} = ?")
                         params.append(value)
                     where_clause = "WHERE id = ?"
-                    params.append(data["id"])
+                    params.append(self.id)
                     query = f"UPDATE setup_table SET {set_clauses}, updated_at = CURRENT_TIMESTAMP {where_clause}"
                     cursor.execute(query, params)
                     if cursor.rowcount == 0:
