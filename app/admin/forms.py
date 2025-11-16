@@ -13,7 +13,7 @@ def dynamic_form(configs):
         "EMAIL" : EmailField
     }
     attrs = {}
-    for key in configs.keys():
+    for key in configs.list_keys():
         if not configs[key].editable:
             continue
         field_cls = type_map[configs[key].type] or StringField

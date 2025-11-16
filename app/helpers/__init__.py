@@ -17,7 +17,7 @@ def template_route(file_name=None):
 def static_route(file_name=None):
     """Returns path to static folder for the current theme, or file path for given 'file_name' in static folder"""
     site_config = json.loads(current_app.redis.get("site_config"))
-    style_config = json.loads(current_app.redis.get(f"{site_config['style']}_style"))
+    style_config = json.loads(current_app.redis.get("style_config"))
     path = os.path.join(
         "addons",
         "style",
@@ -29,11 +29,10 @@ def static_route(file_name=None):
 
 
 def site_data():
-    site_config = json.loads(current_app.redis.get("site_config"))
-    return site_config
+    return json.loads(current_app.redis.get("site_config"))
 
 
 def style_data():
-    site_config = json.loads(current_app.redis.get("site_config"))
-    style_config = json.loads(current_app.redis.get(f"{site_config['style']}_style"))
-    return style_config
+    site_config = current_app.redis.get("style_config")
+    print(json.dumps(json.loads(site_config), indent=4))
+    return json.loads(site_config)

@@ -374,9 +374,6 @@ class ConfigData:
             setattr(self, arg, kwargs[arg])
 
 
-    def __getattr__(self, name):
-        return getattr(self._value, name)
-
     def __str__(self):
         return str(self._value)
 
@@ -459,15 +456,27 @@ class Config:
         return data
 
     def __getitem__(self, key):
-        data = vars(self)[key]
-        return data
+        return vars(self)[key]
+
+
+    def __setitem__(self, key, value):
+        if hasattr(self, key):
+            cd = getattr(self, key)
+            if isinstance(cd, ConfigData):
+                cd._value = value
+                return
+        raise KeyError(f"Config key: '{key}' does not exists")
 
     def update(self):
         success = True
         data = []
-        for key, value in vars(self).items():
-            key_data = {"key": key}
-            for meta_key, meta_value in vars(value).items():
+        for key in self.list_keys():
+            config_data = getattr(self, key)
+            key_data = {
+                "key": key,
+                "value": str(getattr(self, key))
+            }
+            for meta_key, meta_value in config_data.items():
                 key_data[meta_key] = meta_value
             data.append(key_data)
         try:
@@ -481,9 +490,8 @@ class Config:
                             continue
                         set_clauses.append(f"{key} = ?")
                         params.append(value)
-                    where_clause = "WHERE id = ?"
-                    params.append(self.id)
-                    query = f"UPDATE setup_table SET {set_clauses}, updated_at = CURRENT_TIMESTAMP {where_clause}"
+                    params.append(entry["id"])
+                    query = f"UPDATE {self.table_name} SET {', '.join(set_clauses)}, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
                     cursor.execute(query, params)
                     if cursor.rowcount == 0:
                         success = False
@@ -534,9 +542,12 @@ def set_configs():
             for entry in data:
                 addon.append(entry)
     configs = {}
-    configs["site_config"] = get_config()
-    for entry in addon:
-        configs[f"{entry['name'].lower()}_{entry['type'].lower()}"] = get_config(
-            addon_id=entry["id"]
-        )
+    site_config = get_config()
+
+    style_name = str(site_config["style"])
+    style_config = get_config(addon_name = style_name)
+    configs={
+        "style_config" : style_config,
+        "site_config" : site_config
+    }
     return configs

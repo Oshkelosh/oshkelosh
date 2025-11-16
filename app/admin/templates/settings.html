@@ -9,6 +9,20 @@
 </div>
 <br>
 <div>
+	<form method="POST">
+		{{ form.hidden_tag() }}
+		{% for field in form %}
+		{% if field.name != 'csrf_token' and field.type != 'SubmitField' %}
+		<div>
+			{%  if field.description %}<p>{{ field.description }}</p>{% endif %}
+			{{ field.label }} {{ field() }}
+			{% if field.errors %}{{ field.errors[0] }}{% endif %}
+		</div>
+		{% endif %}
+		{% endfor %}
+		<br>
+		{{ form.submit() }}
+	</form>
 </div>
 {% endblock %}
 

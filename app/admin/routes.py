@@ -2,51 +2,18 @@ from flask import (
     current_app,
     render_template,
     redirect,
-    url_for
+    url_for,
+    flash
 )
 from . import bp
 
 from flask_login import current_user, login_required
 
-from flask_wtf import FlaskForm
-from wtforms import StringField, IntegerField, BooleanField, SubmitField, SelectField, EmailField
-
 from app.database import models
 
-def dynamic_form(configs):
-    type_map = {
-        "TEXT" : StringField,
-        "COLOR" : lambda **kw: StringField(**kw, render_kw={'type': 'color'}),
-        "OPTIONS" : SelectField,
-        "BOOL" : BooleanField,
-        "EMAIL" : EmailField
-    }
-    attrs = {}
-    for key in configs.keys():
-        if not configs[key].editable:
-            continue
-        field_cls = type_map[configs[key].type] or StringField
-        kwargs = {
-            "label" : key.capitalize(),
-            "default" : configs[key],
-            "description" : configs[key].description
-        }
-        if configs[key].type == "OPTIONS":
-            choices = None
-            if key == "style":
-                choices = [('','')] + [(opt, opt) for opt in get_styles()]
-                kwargs["choices"] = choices
-        attrs[key] = field_cls(**kwargs)
-    attrs["submit"] = SubmitField('Submit')
-    return type('DynamicForm', (FlaskForm,), attrs)
+from . import forms
 
-def get_styles():
-    style = []
-    addons = models.Addon.get()
-    for addon in addons:
-        if addon.type == "STYLE":
-            style.append(addon.name)
-    return style
+import json
 
 @bp.route("/")
 @login_required
@@ -58,15 +25,32 @@ def index():
 @login_required
 def settings(addon_id = None):
     setup = models.get_config(addon_id = addon_id)
+    formClass = forms.dynamic_form(setup)
+    form = formClass()
     addons = models.Addon.get()
-    for key in setup.list_keys():
-        print(f"{key} : {setup[key]}")
-        for attr, value in setup[key].items():
-            print(f"{attr} - {value}")
-        print('~~~')
+    if form.validate_on_submit():
+        update = False
+        for field in form:
+            if field.name in ["submit", "csrf_token"]:
+                continue
+            if setup[field.name] != field.data:
+                setup[field.name] = field.data
+                update = True
+        if update:
+            success = setup.update()
+            if success:
+                flash("Configs successfully updated!", "success")
+                oshkelosh = models.set_configs()
+                for key, config in oshkelosh.items():
+                    current_app.redis.set(key, json.dumps(config.data()))
+
+            else:
+                flash("Failed updating Configs!", "error")
+        return redirect(url_for('admin.settings', addon_id=addon_id))
+
     return render_template(
         "settings.html",
-        setup = setup,
+        form = form,
         addons = addons
     )
 
