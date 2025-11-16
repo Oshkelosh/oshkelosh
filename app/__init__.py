@@ -51,11 +51,6 @@ def create_app():
     for key, config in oshkelosh.items():
         app.redis.set(key, json.dumps(config.data()))
 
-    print("Loading Jinja2 ChoiseLoader")
-    path = os.path.join(app.root_path, "addons", "style")
-    oshkelosh_loader = jinja2.ChoiceLoader([jinja2.FileSystemLoader(path)])
-    app.jinja_loader = oshkelosh_loader
-
     # login.init_app(app)
 
     print("Loading Blueprints")
@@ -71,6 +66,17 @@ def create_app():
 
     app.register_blueprint(user_bp, url_prefix="/user")
 
-    print(f"Strating Oshkelosh Flask {env_config['FLASK_ENV']} server for {__name__}\n")
 
+    print("Loading Jinja2 ChoiseLoader")
+    addons_path = os.path.join(app.root_path, "addons", "style")
+    admin_bp = app.blueprints['admin']
+    admin_path = os.path.join(admin_bp.root_path, admin_bp.template_folder or 'templates')
+    print(admin_path)
+    oshkelosh_loader = jinja2.ChoiceLoader([
+        jinja2.FileSystemLoader(addons_path),
+        jinja2.FileSystemLoader(admin_path)
+    ])
+    app.jinja_loader = oshkelosh_loader
+
+    print(f"Strating Oshkelosh Flask {env_config['FLASK_ENV']} server for {__name__}\n")
     return app

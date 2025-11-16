@@ -365,7 +365,14 @@ class ConfigData:
         self._attr_name = kwargs.pop("attr_name", None)
         self._value = kwargs.pop("value")
         for arg in kwargs.keys():
+            if arg == "editable":
+                setattr(self, arg, bool(kwargs[arg]))
+                continue
+            if arg == "addon_id":
+                setattr(self, arg, int(kwargs[arg]) if kwargs[arg] is not None else None)
+                continue
             setattr(self, arg, kwargs[arg])
+
 
     def __getattr__(self, name):
         return getattr(self._value, name)
@@ -375,6 +382,18 @@ class ConfigData:
 
     def __repr__(self):
         return repr(self._value)
+
+    def __iter__(self):
+        for key in vars(self):
+            if key.startswith('_'):
+                continue
+            yield (key, getattr(self, key))
+    def items(self):
+        return self
+    def keys(self):
+        return (k for k, _ in self)
+    def values(self):
+        return (v for _, v in self)
 
     def delete(self):
         with conn_db() as connection:
@@ -439,6 +458,10 @@ class Config:
             data[key] = str(getattr(self, key))
         return data
 
+    def __getitem__(self, key):
+        data = vars(self)[key]
+        return data
+
     def update(self):
         success = True
         data = []
@@ -501,6 +524,7 @@ def get_config(addon_name=None, addon_id=None):
 
 
 def set_configs():
+    """Returns all config settings"""
     addon = []
     with conn_db() as conn:
         conn.row_factory = dict_factory

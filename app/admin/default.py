@@ -35,8 +35,9 @@ default_list = [
         "type": "NOT_NULL",
         "key": "key",
         "value": "style",
-        "data": {"value": "basic", "description": "Basic styling for Oshkelosh"},
+        "data": {"value": "basic", "description": "The Styling and Theme applied to the site."},
     },
+
     {
         "object_name": "SETUP",
         "type": "NOT_NULL",

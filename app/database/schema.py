@@ -244,7 +244,7 @@ schema = [
             "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
             "key": "TEXT NOT NULL",
             "value": "TEXT NOT NULL",
-            "type": "TEXT DEFAULT 'TEXT'",  # Types of input: 'TEXT' 'COLOR' '[OPTIONS]'
+            "type": "TEXT DEFAULT 'TEXT'",  # Types of input: 'TEXT' 'COLOR' 'OPTIONS'
             "description": "TEXT",
             "editable": "BOOL DEFAULT 1",
             "addon_id": "INTEGER",

@@ -1,12 +1,3 @@
-from flask import (
-    current_app,
-    render_template,
-    redirect,
-    url_for
-)
-from . import bp
-
-from flask_login import current_user, login_required
 
 from flask_wtf import FlaskForm
 from wtforms import StringField, IntegerField, BooleanField, SubmitField, SelectField, EmailField
@@ -48,36 +39,4 @@ def get_styles():
             style.append(addon.name)
     return style
 
-@bp.route("/")
-@login_required
-def index():
-    return render_template("/index.html")
-
-@bp.route("/settings", methods=["GET", "POST"])
-@bp.route("/settings/<addon_id>", methods=["GET", "POST"])
-@login_required
-def settings(addon_id = None):
-    setup = models.get_config(addon_id = addon_id)
-    addons = models.Addon.get()
-    for key in setup.list_keys():
-        print(f"{key} : {setup[key]}")
-        for attr, value in setup[key].items():
-            print(f"{attr} - {value}")
-        print('~~~')
-    return render_template(
-        "settings.html",
-        setup = setup,
-        addons = addons
-    )
-
-
-@bp.route("/suppliers")
-@login_required
-def suppliers():
-    return render_template("suppliers.html")
-
-@bp.route("/payments")
-@login_required
-def payments():
-    return render_template("payments.html")
 

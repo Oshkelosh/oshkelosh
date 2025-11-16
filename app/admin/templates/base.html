@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link rel="stylesheet" href="{{ url_for('admin.static', filename='style.css') }}">
+</head>
+<body>
+		<div class="main-container">
+			<div class="side-bars"></div>
+			<div class="main">
+				<div class="header">
+					<h1>Oshkelosh Admin Panel</h1>
+					<h2>Welcome, {{ current_user.name }}</h2>
+					<a class="button" href="{{ url_for('admin.index') }}">Main</a>
+					<a class="button" href="{{ url_for('admin.settings') }}">Site Settings</a>
+					<a class="button" href="{{ url_for('admin.suppliers') }}">Suppliers</a>
+					<a class="button" href="{{ url_for('admin.payments') }}">Payment Proccessors</a>
+					<a class="button" href="{{ url_for('main.index') }}">~ Shop Front ~</a>
+
+				</div>
+				<br>
+				<div class="content">
+					{% block content %}
+					{% endblock %}
+				</div>
+				<br>
+				<div class="footer">
+					<p><b>Oshkelosh</b> - because DIY ecomm shouldn't feel like herding cats. Rant or rave at support@oshkelosh.com. Fork us if you're plotting world domination.</p>
+				</div>
+			</div>
+			<div class="side-bars"></div>
+		</div>
+</body>
+</html>
