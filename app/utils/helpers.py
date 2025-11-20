@@ -27,12 +27,3 @@ def static_route(file_name=None):
     )
     return path
 
-
-def site_data():
-    return json.loads(current_app.redis.get("site_config"))
-
-
-def style_data():
-    site_config = current_app.redis.get("style_config")
-    print(json.dumps(json.loads(site_config), indent=4))
-    return json.loads(site_config)

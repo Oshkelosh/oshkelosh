@@ -1,4 +1,93 @@
-from flask import Flask
+import os
+import json
+from flask import Flask, redirect, url_for, flash
+from dotenv import load_dotenv
+
+from .config import config_by_name
+from .themes import get_active_theme_loader, get_active_theme_static
+from .models import models  
+from .blueprints import init_blueprints
+from .error_handlers import register_error_handlers
+
+load_dotenv()  
+
+
+def create_app(config_name: str | None = None) -> Flask:
+    """
+    Application factory.
+    Keeps startup side-effects isolated and testable.
+    """
+    config_name = config_name or os.getenv("FLASK_ENV", "default")
+    app = Flask(
+        __name__,
+        instance_relative_config=True,
+        # We will set static/template folders dynamically per-theme
+        static_folder=None,
+        template_folder=None,
+    )
+
+    # ------------------------------------------------------------------
+    # Configuration
+    # ------------------------------------------------------------------
+    app.config.from_object(config_by_name[config_name])
+    config_by_name[config_name].init_app(app)
+    app.config.from_envvar("OSHKELOSH_SETTINGS", silent=True)  # optional overrides
+
+    # ------------------------------------------------------------------
+    # Logging
+    # ------------------------------------------------------------------
+    from utils.logging import setup_logging
+    setup_logging(app)
+
+    # ------------------------------------------------------------------
+    # Extensions
+    # ------------------------------------------------------------------
+    from .utils.extensions import db, login_manager, redis_client
+    db.init_app(app)
+    login_manager.init_app(app)
+    login_manager.login_view = "user.login"
+    login_manager.login_message_category = "warning"
+
+    redis_client.init_app(app)
+
+    @login_manager.user_loader
+    def load_user(user_id: int):
+        return models.User.get(id=user_id)
+
+    # ------------------------------------------------------------------
+    # Theme / Template / Static resolution (your modular style system)
+    # ------------------------------------------------------------------
+    theme_loader = get_active_theme_loader(app)
+    theme_static_folder, theme_static_url = get_active_theme_static(app)
+
+    app.jinja_loader = theme_loader
+    app.static_folder = theme_static_folder
+    app.static_url_path = theme_static_url
+
+    # ------------------------------------------------------------------
+    # Database & defaults (idempotent – safe to run on every startup)
+    # ------------------------------------------------------------------
+    with app.app_context():
+        from app.database import default
+        db.set_default(default_list = default.default_list)
+
+        # Cache site config in Redis for fast non-DB reads
+        from .utils.site_config import cache_config
+        cache_config()
+
+    # ------------------------------------------------------------------
+    # Blueprints & error handlers
+    # ------------------------------------------------------------------
+    init_blueprints(app)
+    register_error_handlers(app)
+
+    app.logger.info("Oshkelosh %s server ready (theme: %s)", config_name, app.config.get("ACTIVE_THEME"))
+
+    return app
+
+
+'''
+from flask import Flask, redirect, url_for, flash
 from flask_login import LoginManager
 
 import jinja2
@@ -10,6 +99,9 @@ from dotenv import dotenv_values
 import json
 
 from .database import migrations, schema, models
+import exceptions
+
+
 
 
 
@@ -78,5 +170,15 @@ def create_app():
     ])
     app.jinja_loader = oshkelosh_loader
 
+    print("Registering error handlers")
+    @app.errorhandler(exceptions.AuthorizationError)
+    def handle_auth_error(error):
+        admins = models.User.get(role="ADMIN")
+        for admin in admins:
+            continue    #Create new messages
+        flash("An un-authorized action has occured, and you have been logged out.", "WARNING")
+        return redirect(url_for('user.logout'))
+
     print(f"Strating Oshkelosh Flask {env_config['FLASK_ENV']} server for {__name__}\n")
     return app
+    '''

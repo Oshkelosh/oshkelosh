@@ -1,4 +1,4 @@
-db_path = "./data/database.db"
+db_path = "./instance/database.db"
 
 schema = [
     {
@@ -20,6 +20,27 @@ schema = [
         },
     },
     {
+        "table_name": "message_table",
+        "table_columns": {
+            "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+            "user_id": "INTEGER",
+            "subject": "TEXT",
+            "message": "TEXT NOT NULL",
+            "message_role": "TEXT DEFAULT 'CLIENT' CHECK (message_role IN ('CLIENT', 'ADMIN'))", #Aligns with user role, but admin can receive both
+            "type": "TEXT DEFAULT 'FLASH' CHECK (type IN ('FLASH', 'EMAIL'))",
+            "level": "TEXT DEFAULT 'INFO' CHECK (level IN ('INFO', 'WARNING', 'ERROR'))",
+            "template": "TEXT",
+            "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+            "FOREIGN KEY":[
+                {
+                    "key": "user_id",
+                    "parent_table": "user_table",
+                    "parent_key": "id",
+                },
+            ],
+        },
+    },
+    {
         "table_name": "product_table",
         "table_columns": {
             "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
@@ -37,12 +58,12 @@ schema = [
             "FOREIGN KEY": [
                 {
                     "key": "supplier_id",
-                    "parent_table": "supplier_table",
+                    "parent_table": "addon_table",
                     "parent_key": "id",
                 },
                 {
                     "key": "payment_processor_id",
-                    "parent_table": "payment_processor_table",
+                    "parent_table": "addon_table",
                     "parent_key": "id",
                 },
                 {
@@ -122,7 +143,7 @@ schema = [
                 {"key": "order_id", "parent_table": "order_table", "parent_key": "id"},
                 {
                     "key": "payment_processor_id",
-                    "parent_table": "payment_processor_table",
+                    "parent_table": "addon_table",
                     "parent_key": "id",
                 },
             ],
@@ -140,7 +161,7 @@ schema = [
                 {"key": "order_id", "parent_table": "order_table", "parent_key": "id"},
                 {
                     "key": "supplier_id",
-                    "parent_table": "supplier_table",
+                    "parent_table": "addon_table",
                     "parent_key": "id",
                 },
             ],
@@ -173,32 +194,6 @@ schema = [
                     "instruction": "ON DELETE CASCADE",
                 },
             ],
-        },
-    },
-    {
-        "table_name": "supplier_table",
-        "table_columns": {
-            "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
-            "name": "TEXT NOT NULL",
-            "description": "TEXT",
-            "active": "BOOL DEFAULT 1",
-            "api_key": "BLOB NOT NULL",
-            "api_secret": "BLOB",
-            "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
-            "updated_at": "TIMESTAMP",
-        },
-    },
-    {
-        "table_name": "payment_processor_table",
-        "table_columns": {
-            "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
-            "name": "TEXT NOT NULL",
-            "description": "TEXT",
-            "active": "BOOL DEFAULT 1",
-            "api_key": "BLOB NOT NULL",
-            "api_secret": "BLOB",
-            "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
-            "updated_at": "TIMESTAMP",
         },
     },
     {

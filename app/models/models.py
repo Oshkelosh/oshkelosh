@@ -1,6 +1,4 @@
-from .schema import schema
-from .schema import db_path
-from .migrations import get_columns
+from app.database.migrations import get_columns
 
 from flask_login import UserMixin, login_manager
 

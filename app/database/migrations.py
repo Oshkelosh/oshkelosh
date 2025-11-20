@@ -2,7 +2,7 @@ import sqlite3, os, datetime, time
 import json
 
 
-def setupDB(schema: list, db_path: str = "./data/database.db"):
+def setupDB(schema: list, db_path: str = "./instance/database.db"):
     if not schema:
         currentTS = int(time.time())
         date = datetime.datetime.fromtimestamp(currentTS)
