@@ -1,5 +1,6 @@
 import bcrypt
 
+
 """
 'NOT_NULL' check if entry of that type exists
 'PLACEHOLDER' check and fill table with minimum placeholders

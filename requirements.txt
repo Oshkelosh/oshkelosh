@@ -2,9 +2,15 @@ flask
 flask-login
 flask-wtf
 email_validator
+retry
 
 python-dotenv
 redis
 
 bcrypt
 cryptography
+
+psycopg2-binary
+
+PyMySQL
+

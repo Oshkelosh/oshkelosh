@@ -1,195 +1,262 @@
-import sqlite3, os, datetime, time
-import json
+from app.utils.logging import get_logger
+import os
+from pathlib import Path
+from urllib.parse import urlparse
+from typing import Tuple, Dict, List
+
+import sqlite3
+import psycopg2
+import pymysql
+
+log = get_logger(__name__)
+
+DB_OPERATIONAL_ERRORS = (
+    sqlite3.Error,
+    psycopg2.Error,
+    pymysql.MySQLError,
+)
+
+def _connect(uri: str) -> Tuple[object, object, str]:
+    """Establish connection and cursor; return (conn, cursor, backend_type)."""
+    if uri.startswith("sqlite:///"):
+        path = uri.split(":///", 1)[-1] or ":memory:"
+        db_path = str(Path(path).expanduser().resolve()) if path != ":memory:" else ":memory:"
+        if db_path != ":memory:":
+            os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        conn = sqlite3.connect(db_path, timeout=10)  # Add timeout
+        conn.execute("PRAGMA foreign_keys = OFF")
+        return conn, conn.cursor(), "sqlite"
+    if uri.startswith(("postgresql://", "postgres://")):
+        conn = psycopg2.connect(uri)
+        cur = conn.cursor()
+        cur.execute("SET client_min_messages TO WARNING;")
+        return conn, cur, "postgres"
+    if uri.startswith(("mysql://", "mariadb://")):
+        parsed = urlparse(uri)
+        conn = pymysql.connect(
+            host=parsed.hostname or "localhost",
+            port=parsed.port or 3306,
+            user=parsed.username or "",
+            password=parsed.password or "",
+            database=parsed.path.lstrip("/") or None,
+            charset="utf8mb4",
+            connect_timeout=10,
+        )
+        return conn, conn.cursor(), "mysql"
+    raise ValueError(f"Unsupported DATABASE_URI: {uri}")
 
 
-def setupDB(schema: list, db_path: str = "./instance/database.db"):
-    if not schema:
-        currentTS = int(time.time())
-        date = datetime.datetime.fromtimestamp(currentTS)
-        dateFormat = "%d%b %Y %H:%M:%S"
-        printDate = date.strftime(dateFormat)
-        print(f"{printDate}: Error ~ No schema supplied!")
-        return None
+def _map_type(col_type: str, backend: str) -> str:
+    """Map schema type strings to DB-specific equivalents."""
+    base_type = col_type.upper().split()[0]  # E.g., 'INTEGER' from 'INTEGER PRIMARY KEY AUTOINCREMENT'
+    constraints = ' '.join(col_type.upper().split()[1:]) if len(col_type.split()) > 1 else ''
+    
+    type_map = {
+        "INTEGER": {
+            "sqlite": "INTEGER",
+            "postgres": "INTEGER",
+            "mysql": "INT",
+        },
+        "TEXT": {"sqlite": "TEXT", "postgres": "TEXT", "mysql": "TEXT"},
+        "FLOAT": {"sqlite": "REAL", "postgres": "DOUBLE PRECISION", "mysql": "DOUBLE"},
+        "TIMESTAMP": {"sqlite": "TEXT", "postgres": "TIMESTAMP", "mysql": "TIMESTAMP"},  # SQLite: store ISO or epoch
+        "BOOL": {"sqlite": "INTEGER", "postgres": "BOOLEAN", "mysql": "TINYINT(1)"},  # Use 0/1
+    }
+    mapped_base = type_map.get(base_type, {"sqlite": base_type, "postgres": base_type, "mysql": base_type})[backend]
+    
+    if "PRIMARY KEY" in constraints:
+        if "AUTOINCREMENT" in constraints or "AUTO_INCREMENT" in constraints:
+            if backend == "sqlite":
+                return f"{mapped_base} PRIMARY KEY AUTOINCREMENT"
+            elif backend == "postgres":
+                return "SERIAL PRIMARY KEY"
+            elif backend == "mysql":
+                return f"{mapped_base} AUTO_INCREMENT PRIMARY KEY"
+        else:
+            return f"{mapped_base} PRIMARY KEY"
+    return f"{mapped_base} {constraints}".strip()
 
-    db_dir = os.path.dirname(db_path)
-    if db_dir and not os.path.exists(db_dir):
-        currentTS = int(time.time())
-        date = datetime.datetime.fromtimestamp(currentTS)
-        dateFormat = "%d%b %Y %H:%M:%S"
-        printDate = date.strftime(dateFormat)
-        print(f"{printDate}: Creating {db_path}")
-        os.makedirs(db_dir)
-
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    cursor.execute("PRAGMA foreign_keys = OFF")
-
-    for table in schema:
-        table_name = table["table_name"]
-
-        currentTS = int(time.time())
-        date = datetime.datetime.fromtimestamp(currentTS)
-        dateFormat = "%d%b %Y %H:%M:%S"
-        printDate = date.strftime(dateFormat)
-
-        # Check if table exists
+def _table_exists(cursor, table_name: str, backend: str) -> bool:
+    if backend == "sqlite":
+        cursor.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table_name,))
+    else:
         cursor.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+            "SELECT 1 FROM information_schema.tables WHERE table_name = %s AND table_schema = DATABASE()",
             (table_name,),
         )
-        exists = cursor.fetchone() is not None
+    return cursor.fetchone() is not None
 
-        schema_col_names = {
-            k
-            for k, v in table["table_columns"].items()
-            if k.upper() not in ["FOREIGN KEY", "UNIQUE"]
-        }
-
-        if not exists:
-            print(f"{printDate}: Creating new table {table_name}")
-            # Build and execute CREATE TABLE
-            query_content = []
-            for key, value in table["table_columns"].items():
-                if key.upper() in ["FOREIGN KEY", "UNIQUE"]:
-                    continue
-                query_content.append(f"{key} {value}")
-            if "UNIQUE" in table["table_columns"]:
-                uniques = table["table_columns"]["UNIQUE"]
-                if isinstance(uniques, list):
-                    query_entry = f"UNIQUE ({', '.join(uniques)})"
-                    query_content.append(query_entry)
-            fk_key = "FOREIGN KEY"
-            if fk_key in table["table_columns"]:
-                fks = table["table_columns"][fk_key]
-                if not isinstance(fks, list):
-                    fks = [fks]
-                for fk in fks:
-                    instruction = fk.get("instruction", "")
-                    query_entry = f"FOREIGN KEY ({fk['key']}) REFERENCES {fk['parent_table']}({fk['parent_key']}) {instruction}"
-                    query_content.append(query_entry)
-            columns_content = ", ".join(query_content)
-            sql_string = f"CREATE TABLE {table_name} ({columns_content})"
-            cursor.execute(sql_string)
-            continue
-
-        # Table exists, fetch info
+def _get_existing_columns(cursor, table_name: str, backend: str) -> Dict[str, str]:
+    if backend == "sqlite":
         cursor.execute(f"PRAGMA table_info({table_name})")
-        table_columns_info = cursor.fetchall()
-        existing_columns = {row[1]: row for row in table_columns_info}
-        existing_col_names = set(existing_columns.keys())
-
-        # Existing FKs
-        cursor.execute(f"PRAGMA foreign_key_list({table_name})")
-        existing_fks_raw = cursor.fetchall()
-        existing_fks = {}
-        for row in existing_fks_raw:
-            child_col = row[3]
-            on_delete = row[6]
-            instruction = (
-                f"ON DELETE {on_delete}"
-                if on_delete and on_delete != "NO ACTION"
-                else ""
-            )
-            existing_fks[child_col] = {
-                "parent_table": row[2],
-                "parent_key": row[4],
-                "instruction": instruction,
-            }
-
-        # Existing UNIQUE
-        cursor.execute(f"PRAGMA index_list({table_name})")
-        existing_uniques = {}
-        for idx_row in cursor.fetchall():
-            if idx_row[2] == 1:  # unique
-                cursor.execute(f"PRAGMA index_info({idx_row[1]})")
-                cols = sorted([row[2] for row in cursor.fetchall()])
-                existing_uniques[tuple(cols)] = True
-
-        # Schema FKs
-        schema_fks_raw = table["table_columns"].get("FOREIGN KEY", [])
-        if not isinstance(schema_fks_raw, list):
-            schema_fks_raw = [schema_fks_raw] if schema_fks_raw else []
-        schema_fks = schema_fks_raw
-        schema_fks_set = frozenset(
-            (fk["key"], fk["parent_table"], fk["parent_key"], fk.get("instruction", ""))
-            for fk in schema_fks
-        )
-        existing_fks_set = frozenset(
-            (k, v["parent_table"], v["parent_key"], v["instruction"])
-            for k, v in existing_fks.items()
-        )
-
-        # Schema UNIQUE
-        schema_uniques_raw = table["table_columns"].get("UNIQUE", [])
-        if not isinstance(schema_uniques_raw, list):
-            schema_uniques_raw = []
-        schema_uniques = schema_uniques_raw
-        schema_unique_tuple = tuple(sorted(schema_uniques)) if schema_uniques else None
-
-        # Determine if needs recreate
-        needs_recreate = False
-        if schema_col_names != existing_col_names:
-            needs_recreate = True
-        if schema_fks_set != existing_fks_set:
-            needs_recreate = True
-        unique_match = (schema_unique_tuple is None and not existing_uniques) or (
-            schema_unique_tuple is not None and schema_unique_tuple in existing_uniques
-        )
-        if not unique_match:
-            needs_recreate = True
-
-        if not needs_recreate:
-            print(f"{printDate}: {table_name} is up to date.")
-            continue
-
-        # Recreate
-        print(f"{printDate}: Recreating {table_name} with data migration.")
+        return {row[1].lower(): row[2].lower() for row in cursor.fetchall()}
+    else:
         cursor.execute(
-            f"CREATE TABLE {table_name}_backup AS SELECT * FROM {table_name}"
+            "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = %s AND table_schema = DATABASE()",
+            (table_name,),
         )
-        cursor.execute(f"DROP TABLE {table_name}")
+        return {row[0].lower(): row[1].lower() for row in cursor.fetchall()}
 
-        # Build and create new
-        query_content = []
-        for key, value in table["table_columns"].items():
-            if key.upper() in ["FOREIGN KEY", "UNIQUE"]:
-                continue
-            query_content.append(f"{key} {value}")
-        if "UNIQUE" in table["table_columns"]:
-            uniques = table["table_columns"]["UNIQUE"]
-            if isinstance(uniques, list):
-                query_entry = f"UNIQUE ({', '.join(uniques)})"
-                query_content.append(query_entry)
-        fk_key = "FOREIGN KEY"
-        if fk_key in table["table_columns"]:
-            fks = table["table_columns"][fk_key]
-            if not isinstance(fks, list):
-                fks = [fks]
-            for fk in fks:
-                instruction = fk.get("instruction", "")
-                query_entry = f"FOREIGN KEY ({fk['key']}) REFERENCES {fk['parent_table']}({fk['parent_key']}) {instruction}"
-                query_content.append(query_entry)
-        columns_content = ", ".join(query_content)
-        sql_string = f"CREATE TABLE {table_name} ({columns_content})"
-        cursor.execute(sql_string)
+def _constraint_exists(cursor, table_name: str, constraint_name: str, backend: str) -> bool:
+    if backend == "sqlite":
+        # SQLite doesn't easily query constraints; assume try-except handles
+        return False
+    else:
+        cursor.execute(
+            "SELECT 1 FROM information_schema.table_constraints WHERE table_name = %s AND constraint_name = %s",
+            (table_name, constraint_name),
+        )
+        return cursor.fetchone() is not None
 
-        # Migrate data
-        common_cols = list(schema_col_names & existing_col_names)
-        if common_cols:
-            cols_str = ", ".join(f'"{col}"' for col in common_cols)
-            cursor.execute(
-                f"INSERT INTO {table_name} ({cols_str}) SELECT {cols_str} FROM {table_name}_backup"
-            )
+def _get_row_count(cursor, table_name: str) -> int:
+    cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
+    return cursor.fetchone()[0]
 
-        cursor.execute(f"DROP TABLE {table_name}_backup")
-
-    cursor.execute("PRAGMA foreign_keys = ON")
+def _recreate_table_for_sqlite(conn, cursor, table_name: str, cols_def: Dict, backend: str):
+    """Safely recreate SQLite table with data copy if changes needed."""
+    # Get existing data
+    cursor.execute(f"SELECT * FROM {table_name}")
+    data = cursor.fetchall()
+    columns = [desc[0] for desc in cursor.description]
+    
+    # Create temp table with new schema
+    temp_name = f"{table_name}_temp"
+    _create_table(cursor, temp_name, cols_def, backend)  # Use helper to build CREATE
+    
+    # Insert data (map to new columns, use defaults for added)
+    new_cols = [n for n in cols_def if n.upper() not in ("FOREIGN KEY", "UNIQUE")]
+    insert_cols = ', '.join(new_cols)
+    values = ', '.join(['?' for _ in new_cols])
+    for row in data:
+        row_dict = dict(zip(columns, row))
+        new_row = [row_dict.get(col, None) for col in new_cols]  # None for new cols
+        cursor.execute(f"INSERT INTO {temp_name} ({insert_cols}) VALUES ({values})", new_row)
+    
+    # Drop old, rename new
+    cursor.execute(f"DROP TABLE {table_name}")
+    cursor.execute(f"ALTER TABLE {temp_name} RENAME TO {table_name}")
     conn.commit()
-    conn.close()
+    log.info(f"Recreated {table_name} with changes")
 
+def _create_table(cursor, table_name: str, cols_def: Dict, backend: str):
+    parts = []
+    for col_name, col_type in cols_def.items():
+        if col_name.upper() in ("FOREIGN KEY", "UNIQUE"):
+            continue
+        mapped_type = _map_type(col_type, backend)
+        # Ensure DEFAULT for NOT NULL if missing
+        if "NOT NULL" in mapped_type.upper() and "DEFAULT" not in mapped_type.upper():
+            default_val = "''" if "TEXT" in mapped_type.upper() else "0"
+            mapped_type += f" DEFAULT {default_val}"
+        parts.append(f"{col_name} {mapped_type}")
+    
+    if "UNIQUE" in cols_def:
+        u = cols_def["UNIQUE"]
+        if isinstance(u, list) and u:
+            parts.append(f"UNIQUE ({', '.join(u)})")
+    
+    if "FOREIGN KEY" in cols_def:
+        fks = cols_def["FOREIGN KEY"] if isinstance(cols_def["FOREIGN KEY"], list) else [cols_def["FOREIGN KEY"]]
+        for fk in fks:
+            instr = fk.get("instruction", "").strip()
+            parts.append(f"FOREIGN KEY ({fk['key']}) REFERENCES {fk['parent_table']}({fk['parent_key']}) {instr}")
+    
+    cursor.execute(f"CREATE TABLE {table_name} ({', '.join(parts)})")
 
-def get_columns(table_name, db_path):
-    with sqlite3.connect(db_path) as conn:
-        cursor = conn.cursor()
-        cursor.execute(f"PRAGMA table_info({table_name})")
-        return [row[1] for row in cursor.fetchall()]
+def setupDB(schema: List[Dict], uri: str):
+    """
+    Synchronize DB schema safely:
+    - Create missing tables with all columns/constraints.
+    - Add missing columns/constraints to existing tables (recreate for SQLite if needed).
+    - Add missing UNIQUE/FK constraints (skips if exist).
+    - No data loss; production-safe, but use Alembic for complex prod migrations.
+    - Call anytime for addon schema extensions.
+    """
+    if not schema:
+        log.error("No schema provided")
+        return
+    conn, cursor, backend = _connect(uri)
+    
+    try:
+        for table_def in schema:
+            table_name = table_def["table_name"]
+            cols_def = table_def["table_columns"]
+            log.info(f"Syncing {table_name}")
+            
+            if not _table_exists(cursor, table_name, backend):
+                _create_table(cursor, table_name, cols_def, backend)
+                log.info(f"Created table")
+                continue
+            
+            # Check for changes needing recreate (SQLite only)
+            needs_recreate = False
+            if backend == "sqlite":
+                # If adding columns with constraints or new FK/UNIQUE, flag
+                existing_cols = _get_existing_columns(cursor, table_name, backend)
+                for col_name, _ in cols_def.items():
+                    if col_name.upper() in ("FOREIGN KEY", "UNIQUE"):
+                        needs_recreate = True  # Can't add constraints
+                    elif col_name.lower() not in existing_cols:
+                        needs_recreate = True  # For safety, recreate
+                if needs_recreate:
+                    _recreate_table_for_sqlite(conn, cursor, table_name, cols_def, backend)
+                    continue
+            
+            # Add missing columns (non-SQLite or simple adds)
+            existing_cols = _get_existing_columns(cursor, table_name, backend)
+            for col_name, col_type in cols_def.items():
+                if col_name.upper() in ("FOREIGN KEY", "UNIQUE"):
+                    continue
+                if col_name.lower() not in existing_cols:
+                    row_count = _get_row_count(cursor, table_name)
+                    mapped_type = _map_type(col_type, backend)
+                    if "NOT NULL" in mapped_type.upper() and row_count > 0 and "DEFAULT" not in mapped_type.upper():
+                        # Add as NULL, update, then NOT NULL
+                        temp_type = mapped_type.replace("NOT NULL", "")
+                        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {temp_type}")
+                        default_val = "''" if "TEXT" in mapped_type.upper() else "0"
+                        cursor.execute(f"UPDATE {table_name} SET {col_name} = {default_val}")
+                        cursor.execute(f"ALTER TABLE {table_name} ALTER COLUMN {col_name} {mapped_type}")
+                    else:
+                        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {mapped_type}")
+                    log.info(f"Added column {col_name}")
+            
+            # Add UNIQUE if missing
+            if "UNIQUE" in cols_def:
+                u = cols_def["UNIQUE"]
+                if isinstance(u, list) and u:
+                    uniq_name = f"uniq_{table_name}_{'_'.join(u)}"
+                    if not _constraint_exists(cursor, table_name, uniq_name, backend):
+                        try:
+                            cursor.execute(f"ALTER TABLE {table_name} ADD CONSTRAINT {uniq_name} UNIQUE ({', '.join(u)})")
+                            log.info(f"Added UNIQUE on {u}")
+                        except DB_OPERATIONAL_ERRORS:
+                            log.debug(f"UNIQUE constraint {uniq_name} already exists or conflict")
+            
+            # Add FKs if missing
+            if "FOREIGN KEY" in cols_def:
+                fks = cols_def["FOREIGN KEY"] if isinstance(cols_def["FOREIGN KEY"], list) else [cols_def["FOREIGN KEY"]]
+                for fk in fks:
+                    fk_name = f"fk_{table_name}_{fk['key']}"
+                    if not _constraint_exists(cursor, table_name, fk_name, backend):
+                        try:
+                            instr = fk.get("instruction", "").strip()
+                            cursor.execute(
+                                f"ALTER TABLE {table_name} ADD CONSTRAINT {fk_name} "
+                                f"FOREIGN KEY ({fk['key']}) REFERENCES {fk['parent_table']}({fk['parent_key']}) {instr}"
+                            )
+                            log.info(f"Added FK {fk['key']} -> {fk['parent_table']}")
+                        except DB_OPERATIONAL_ERRORS:
+                            log.debug(f"FK constraint {fk_name} already exists or conflict")
+        
+        conn.commit()
+        log.info("Schema sync complete")
+    except DB_OPERATIONAL_ERRORS as e:
+        conn.rollback()
+        log.exception(f"Sync failed: {e}")
+        raise
+    finally:
+        if backend == "sqlite":
+            conn.execute("PRAGMA foreign_keys = ON")
+        cursor.close()
+        conn.close()

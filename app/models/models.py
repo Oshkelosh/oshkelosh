@@ -1,8 +1,10 @@
-from app.database.migrations import get_columns
+from flask import current_app
+
+
+from app import db
 
 from flask_login import UserMixin, login_manager
 
-from functools import lru_cache
 
 import sqlite3, os, datetime, time
 import json, string
@@ -14,6 +16,8 @@ import bcrypt
 
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from app.utils.logging import get_logger
+log = get_logger(__name__) 
 
 def safe_name(name):
     alphabet = string.ascii_lowercase
@@ -40,13 +44,8 @@ def dict_factory(cursor, row):
     return {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
 
 
-@lru_cache(maxsize=None)
 def conn_db():
-    db = sqlite3.connect(db_path, check_same_thread=False)
-    db.execute("PRAGMA journal_mode=WAL;")
-    db.execute("PRAGMA busy_timeout=5000;")
-    db.execute("PRAGMA synchronous=NORMAL;")
-    return db
+    return db.connection()
 
 
 def set_defaults(default_list):
@@ -63,7 +62,8 @@ def set_defaults(default_list):
     }
     try:
         for entry in default_list:
-            print(f"Setting default {entry['type']} for {entry['object_name']}")
+            log.info(f"Setting default {entry['type']} for {entry['object_name']}")
+            
             if entry["type"] == "PLACEHOLDER":
                 objects = classes[entry["object_name"]].get()
                 difference = int(entry["amount"]) - len(objects)
@@ -86,8 +86,8 @@ def set_defaults(default_list):
                 object_data[entry["key"]] = entry["value"]
                 classes[entry["object_name"]].new(**object_data)
     except Exception as e:
-        print(f"Failed loading defaults, {e}")
-        return False
+        log.error(f"Failed loading defaults, {e}")
+        raise ValueError(f"Failed loading defaults, {e}") from e
     return True
 
 
@@ -112,7 +112,7 @@ class BaseClass:
             raise KeyError("Invalid ID key found")
         if cls.table_name is None:
             raise ValueError("table_name must be set in subclass")
-        table_columns = get_columns(cls.table_name, db_path)
+        table_columns = db.get_columns(table_name=cls.table_name)
         excess = [col for col in kwargs if col not in table_columns]
         if excess:
             raise KeyError(f"Unknown arguments: {', '.join(excess)}")
@@ -122,9 +122,8 @@ class BaseClass:
                     kwargs[key] = json.dumps(kwargs[key])
                 except (TypeError, ValueError):
                     pass
-        with conn_db() as conn:
+        with conn_db() as (conn, cursor):
             conn.row_factory = dict_factory
-            cursor = conn.cursor()
             cursor.execute(
                 f"""
                 INSERT INTO {cls.table_name} ({", ".join(kwargs.keys())})
@@ -141,9 +140,8 @@ class BaseClass:
 
     @classmethod
     def get(cls, **kwargs) -> List['BaseClass']:
-        with conn_db() as conn:
+        with conn_db() as (conn, cursor):
             conn.row_factory = dict_factory
-            cursor = conn.cursor()
 
             if not kwargs:
                 cursor.execute(f"SELECT * FROM {cls.table_name}")
@@ -170,12 +168,11 @@ class BaseClass:
                 raise KeyError(f"Invalid keys for update: {', '.join(invalid)}")
             update_data = {k: getattr(self, k) for k in keys}
         if not update_data:
-            print(f"Nothing updated to {self.table_name}")
+            log.info(f"Nothing updated to {self.table_name}")
             return True
         set_clause = ", ".join(f"{k} = ?" for k in update_data)
         params = tuple(update_data.values()) + (getattr(self, 'id'),)
-        with conn_db() as conn:
-            cursor = conn.cursor()
+        with conn_db() as (conn, cursor):
             cursor.execute(
                 f"UPDATE {self.table_name} SET {set_clause} WHERE id = ?", params
             )
@@ -228,10 +225,9 @@ class Image(BaseClass):
     non_update = ["id", "product_id"]
 
     def delete(self):
-        with conn_db() as connection:
+        with conn_db() as (connection, cursor):
             query = "DELETE FROM image_table WHERE id = ?"
             data = [getattr(self, 'id')]
-            cursor = connection.cursor()
             cursor.execute(query, data)
             connection.commit()
 
@@ -273,10 +269,9 @@ class Category(BaseClass):
     non_update = ["id"]
 
     def delete(self):
-        with conn_db() as connection:
+        with conn_db() as (connection, cursor):
             query = "DELETE FROM category_table WHERE id=?"
             data = [getattr(self, 'id')]
-            cursor = connection.cursor()
             cursor.execute(query, data)
             connection.commit()
 
@@ -309,7 +304,7 @@ class Addon(BaseClass):
             raise KeyError("Invalid ID key found")
         if cls.table_name is None:
             raise ValueError("table_name must be set in subclass")
-        table_columns = get_columns(cls.table_name, db_path)
+        table_columns = db.get_columns(table_name=cls.table_name)
         excess = [col for col in kwargs if col not in table_columns]
         if excess:
             raise KeyError(
@@ -321,9 +316,8 @@ class Addon(BaseClass):
                     kwargs[key] = json.dumps(kwargs[key])
                 except (TypeError, ValueError):
                     pass
-        with conn_db() as conn:
+        with conn_db() as (conn, cursor):
             conn.row_factory = dict_factory
-            cursor = conn.cursor()
             cursor.execute(
                 f"""
                 INSERT INTO {cls.table_name} ({", ".join(kwargs.keys())})
@@ -335,8 +329,9 @@ class Addon(BaseClass):
             last_id = cursor.lastrowid
 
             addon_path = (
-                Path("app") / "addons" / kwargs["type"].lower() / kwargs["name"].lower()
+                Path("app") / "styles" if kwargs["type"] == 'STYLE' else "addons" / kwargs["name"].lower()
             )
+
             module_name = f"{kwargs['type'].lower()}.{kwargs['name'].lower()}"
             spec = importlib.util.spec_from_file_location(
                 module_name, addon_path / "__init__.py"
@@ -347,7 +342,7 @@ class Addon(BaseClass):
             for i in range(len(default_list)):
                 default_list[i]["data"]["addon_id"] = last_id
 
-            print(f"Setting Addon {kwargs['name']} defaults")
+            log.info(f"Setting Addon {kwargs['name']} defaults")
             if not set_defaults(default_list):
                 raise ValueError(f"Defaults for Addon: {kwargs['name']} failed to set")
 
@@ -391,10 +386,9 @@ class ConfigData:
         return (v for _, v in self)
 
     def delete(self):
-        with conn_db() as connection:
+        with conn_db() as (connection, cursor):
             query = "DELETE FROM setup_table WHERE id=?"
             data = [self.id]
-            cursor = connection.cursor()
             cursor.execute(query, data)
             connection.commit()
         if self._parent and self._attr_name:
@@ -413,9 +407,7 @@ class Config:
 
     @classmethod
     def new(cls, **kwargs):
-        with conn_db() as conn:
-            cursor = conn.cursor()
-
+        with conn_db() as (conn, cursor):
             cursor.execute(
                 f"INSERT INTO setup_table ({', '.join(kwargs.keys())}) VALUES ({', '.join(['?' for _ in kwargs])})",
                 tuple(kwargs.values()),
@@ -425,9 +417,8 @@ class Config:
     @classmethod
     def get(cls, **kwargs):
         """Returns specific Config setting data"""
-        with conn_db() as conn:
+        with conn_db() as (conn, cursor):
             conn.row_factory = dict_factory
-            cursor = conn.cursor()
             clauses = [f"{key} = ?" for key in kwargs]
             params = tuple(kwargs.values())
             if "addon_id" not in kwargs:
@@ -478,8 +469,7 @@ class Config:
                 key_data[meta_key] = meta_value
             data.append(key_data)
         try:
-            with conn_db() as conn:
-                cursor = conn.cursor()
+            with conn_db() as (conn, cursor):
                 for entry in data:
                     set_clauses = []
                     params = []
@@ -495,17 +485,16 @@ class Config:
                         success = False
                 conn.commit()
         except sqlite3.Error as e:
-            print(f"Config update error: {e}")
-            success = False
+            log.error(f"Config update error: {e}")
+            raise ValueError(f"Config update error: {e}") from e
         return success
 
 
 def get_config(addon_name=None, addon_id=None):
     config = None
 
-    with conn_db() as conn:
+    with conn_db() as (conn, cursor):
         conn.row_factory = dict_factory
-        cursor = conn.cursor()
 
         if addon_name:
             data = cursor.execute(
@@ -532,9 +521,8 @@ def get_config(addon_name=None, addon_id=None):
 def set_configs():
     """Returns all config settings"""
     addon = []
-    with conn_db() as conn:
+    with conn_db() as (conn, cursor):
         conn.row_factory = dict_factory
-        cursor = conn.cursor()
         data = cursor.execute("SELECT * FROM addon_table").fetchall()
         if data:
             for entry in data:

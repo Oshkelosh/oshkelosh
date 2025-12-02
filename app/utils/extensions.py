@@ -1,4 +1,4 @@
-from app.logging import get_logger
+from app.utils.logging import get_logger
 
 from flask_login import LoginManager
 import redis
@@ -24,22 +24,6 @@ class RedisClient:
 
 redis_client = RedisClient()
 
-from app.database import setupDB
-from app.database import schema
-
-from app.models import models
-
-class DBClient:
-    def init_app(self, app):
-        logger.info("Setting up sql database . . .")
-        setupDB(schema = schema.schema, db_path=app.DATABASE_URI)
-    
-    def set_defaults(self, default_list):
-        logger.info("Setting Default to database . . ")
-        success = models.set_defaults(default_list=default_list)
-        if not success:
-            logger.error("Failed to load defaults")
-            raise ValueError("Failed to load defaults to database!")
 
 
-db = DBClient()
+

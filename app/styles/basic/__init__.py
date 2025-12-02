@@ -3,9 +3,21 @@ default_list = [
         "object_name": "SETUP",
         "type": "NOT_NULL",
         "key": "key",
+        "value": "name",
+        "data": {
+            "value": "basic",
+            "description": "Style Name",
+            "editable": "0",
+        },
+    },
+
+    {
+        "object_name": "SETUP",
+        "type": "NOT_NULL",
+        "key": "key",
         "value": "template_path",
         "data": {
-            "value": "templates",
+            "value": "basic/templates",
             "description": "Template path for the 'Basic' style.",
             "editable": "0",
         },
@@ -14,9 +26,21 @@ default_list = [
         "object_name": "SETUP",
         "type": "NOT_NULL",
         "key": "key",
+        "value": "theme_name",
+        "data": {
+            "value": "default",
+            "description": "Default theme for for the 'Basic' style.",
+            "editable": "0",
+        },
+    },
+
+    {
+        "object_name": "SETUP",
+        "type": "NOT_NULL",
+        "key": "key",
         "value": "static_path",
         "data": {
-            "value": "theme/default/static",
+            "value": "basic/theme/default/static",
             "description": "Static path for the 'Basic' theme.",
             "editable": "0",
         },

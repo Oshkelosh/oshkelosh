@@ -8,7 +8,7 @@ import os
 from typing import Optional
 
 from flask import current_app, has_app_context
-from .config import DEFAULT_LOG_LEVEL, DEFAULT_LOG_FORMAT, DEFAULT_LOG_DATEFMT
+from app.config import DEFAULT_LOG_LEVEL, DEFAULT_LOG_FORMAT, DEFAULT_LOG_DATEFMT
 
 
 _configured = False
