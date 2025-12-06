@@ -9,7 +9,7 @@ from . import bp
 
 from flask_login import current_user, login_required
 
-from app.database import models
+from app.models import models
 
 from . import forms
 

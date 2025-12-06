@@ -14,7 +14,7 @@ from pathlib import Path
 
 import bcrypt
 
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterator, KeysView, ValuesView, ItemsView, Optional, List
 
 from app.utils.logging import get_logger
 log = get_logger(__name__) 
@@ -40,8 +40,7 @@ def check_names(name):
     return name
 
 
-def dict_factory(cursor, row):
-    return {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
+
 
 
 def conn_db():
@@ -58,22 +57,18 @@ def set_defaults(default_list):
         "SUPPLIER": Supplier,
         "REVIEW": Review,
         "ADDON": Addon,
-        "SETUP": Config,
+        "SETUP": ConfigData
     }
     try:
         for entry in default_list:
             log.info(f"Setting default {entry['type']} for {entry['object_name']}")
-            
-            if entry["type"] == "PLACEHOLDER":
-                objects = classes[entry["object_name"]].get()
-                difference = int(entry["amount"]) - len(objects)
-                if difference == 0:
-                    continue
-                for i in range(difference):
-                    classes[entry["object_name"]].new(**entry["data"])
-                continue
             if entry["type"] in ["NOT NULL", "NOT_NULL"]:
-                objects = classes[entry["object_name"]].get()
+                cls_ = classes[entry["object_name"]]
+                objects = (
+                    cls_.get(addon_id=entry['data']['addon_id'])
+                    if entry['data'].get('addon_id') is not None
+                    else cls_.get()
+                )
                 exists = False
                 if objects:
                     for set_object in objects:
@@ -123,7 +118,6 @@ class BaseClass:
                 except (TypeError, ValueError):
                     pass
         with conn_db() as (conn, cursor):
-            conn.row_factory = dict_factory
             cursor.execute(
                 f"""
                 INSERT INTO {cls.table_name} ({", ".join(kwargs.keys())})
@@ -141,7 +135,6 @@ class BaseClass:
     @classmethod
     def get(cls, **kwargs) -> List['BaseClass']:
         with conn_db() as (conn, cursor):
-            conn.row_factory = dict_factory
 
             if not kwargs:
                 cursor.execute(f"SELECT * FROM {cls.table_name}")
@@ -317,7 +310,6 @@ class Addon(BaseClass):
                 except (TypeError, ValueError):
                     pass
         with conn_db() as (conn, cursor):
-            conn.row_factory = dict_factory
             cursor.execute(
                 f"""
                 INSERT INTO {cls.table_name} ({", ".join(kwargs.keys())})
@@ -328,11 +320,14 @@ class Addon(BaseClass):
             conn.commit()
             last_id = cursor.lastrowid
 
-            addon_path = (
-                Path("app") / "styles" if kwargs["type"] == 'STYLE' else "addons" / kwargs["name"].lower()
-            )
+            addon_path = None
+            module_name = ""
+            if kwargs['type'] == "STYLE":   #Add names for other addon types
+                addon_path = (
+                    Path('app') / 'styles' / kwargs['name'].lower()
+                )
+                module_name = f"app.styles.{kwargs['name'].lower()}"
 
-            module_name = f"{kwargs['type'].lower()}.{kwargs['name'].lower()}"
             spec = importlib.util.spec_from_file_location(
                 module_name, addon_path / "__init__.py"
             )
@@ -345,6 +340,8 @@ class Addon(BaseClass):
             log.info(f"Setting Addon {kwargs['name']} defaults")
             if not set_defaults(default_list):
                 raise ValueError(f"Defaults for Addon: {kwargs['name']} failed to set")
+            else:
+                log.info(f"Finished setting defaults for {kwargs['name']}")
 
             last_entry = cursor.execute(
                 f"SELECT * FROM {cls.table_name} WHERE id = ?", (last_id,)
@@ -352,38 +349,49 @@ class Addon(BaseClass):
             return cls(**last_entry)
 
 
-class ConfigData:
-    def __init__(self, **kwargs):
-        self._parent = kwargs.pop("parent", None)
-        self._attr_name = kwargs.pop("attr_name", None)
-        self._value = kwargs.pop("value")
-        for arg in kwargs.keys():
-            if arg == "editable":
-                setattr(self, arg, bool(kwargs[arg]))
-                continue
-            if arg == "addon_id":
-                setattr(self, arg, int(kwargs[arg]) if kwargs[arg] is not None else None)
-                continue
-            setattr(self, arg, kwargs[arg])
+class ConfigData(BaseClass):
+    """Thin wrapper that holds the raw value + meta data, behaves like the value itself"""
 
+    value: Any
+    editable: bool = True
+    description: Optional[str] = None
+    addon_id: Optional[int] = None
+    created_at: str
+    updated_at: str
+    id: int
+    key: str
+    type: str
+    table_name = "setup_table"
+    non_update = ["addon_id", "created_at", "updated_at", "id", "key", "type"]
 
-    def __str__(self):
-        return str(self._value)
-
-    def __repr__(self):
-        return repr(self._value)
-
-    def __iter__(self):
-        for key in vars(self):
-            if key.startswith('_'):
-                continue
-            yield (key, getattr(self, key))
-    def items(self):
-        return self
-    def keys(self):
-        return (k for k, _ in self)
-    def values(self):
-        return (v for _, v in self)
+    def __repr__(self) -> str:
+        return f"<ConfigValue {self.key}={self.value}"
+    def __str__(self) -> str:
+        return str(self.value)
+    def __eq__(self, other: Any) -> bool:
+        return self.value == other
+    def __hash__(self) -> int:
+        return hash(self.value)
+    def __int__(self):      return int(self.value)
+    def __float__(self):    return float(self.value)
+    def __bool__(self):     return bool(self.value)
+    def __len__(self):      return len(self.value)
+    def __getitem__(self, k): return self.value[k]
+    def __contains__(self, item): return item in self.value
+    def __iter__(self) -> Iterator:
+        return iter(self.value)
+    def meta(self) -> Dict[str, Any]:
+        """Return all metadata (excluding the raw value)."""
+        return {
+            "editable": self.editable,
+            "description": self.description,
+            "addon_id": self.addon_id,
+            "created_at":self.created_at,
+            "updated_at":self.updated_at,
+            "id": self.id,
+            "key": self.key,
+            "type": self.type
+        }
 
     def delete(self):
         with conn_db() as (connection, cursor):
@@ -396,107 +404,80 @@ class ConfigData:
 
 
 class Config:
-    table_name = "setup_table"
-    non_update = ["id", "key", "addon_id", "created_at", "updated_at"]
+    def __init__(self, addon_id:Optional[int] = None):
+        self._addon_id = addon_id
+        self._cache: Dict[str, ConfigData] = {}
+        self._load()
 
-    def __init__(self, **kwargs):
-        self.type = "ADDON" if kwargs["addon_id"] is not None else "GLOBAL"
-        if len(kwargs) > 1 and "key" in kwargs:
-            key = kwargs.pop("key")
-            self.set_config(key, **kwargs)
+    def _load(self):
+        with conn_db() as (conn, cur):
+            if self._addon_id is None:
+                cur.execute(f"SELECT * FROM setup_table WHERE addon_id IS NULL")
+            else:
+                cur.execute(f"SELECT * FROM setup_table WHERE addon_id = ?", (self._addon_id,))
+            result = cur.fetchall()
+            if not result:
+                raise ValueError(f"Config data for {f"addon_id:{self.addon_id}" if self.addon_id else "site"} not found, check defaults.")
+            for row in result:
+                data = ConfigData(
+                    value=row["value"],
+                    editable=bool(row["editable"]),
+                    description=row.get("description"),
+                    addon_id=row["addon_id"],
+                    created_at = row["created_at"],
+                    updated_at = row["updated_at"],
+                    id=row["id"],
+                    key=row["key"],
+                    type=row["type"]
+                )
+                self._cache[row["key"]] = data
+
+    def __getitem__(self, key: str) -> Any:
+        return self._cache[key]
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        """Set value and persist immediately (or queue – your call)."""
+        if key not in self._cache:
+            raise KeyError(f"Config key '{key}' does not exist")
+        self._cache[key].value = value
+        self._cache[key].update()   # atomic persistence
+
+    def __contains__(self, key: str) -> bool:
+        return key in self._cache
+
+    def __iter__(self):
+        return iter(self._cache)
+
+    def keys(self) -> KeysView[str]:      return self._cache.keys()
+    def values(self) -> ValuesView[Any]:  return (cv.value for cv in self._cache.values())
+    def items(self) -> ItemsView[str, Any]: return ((k, cv.value) for k, cv in self._cache.items())
+
+    def data(self) -> Dict[str, Any]:
+        """Plain dict of key → raw value (exactly what you wanted)."""
+        return {k: cv.value for k, cv in self._cache.items()}
+
+    def meta(self) -> Dict[str, Dict[str, Any]]:
+        """All metadata for frontend/UI use."""
+        return {k: cv.meta() for k, cv in self._cache.items()}
 
     @classmethod
-    def new(cls, **kwargs):
+    def new(cls, key: str, value: Any, *, addon_id: Optional[int] = None, **meta) -> None:
         with conn_db() as (conn, cursor):
+            columns = ["key", "value", "addon_id"] + list(meta.keys())
+            placeholders = ["?"] * len(columns)
+            values = [key, str(value), addon_id] + list(meta.values())
             cursor.execute(
-                f"INSERT INTO setup_table ({', '.join(kwargs.keys())}) VALUES ({', '.join(['?' for _ in kwargs])})",
-                tuple(kwargs.values()),
+                f"INSERT INTO {cls._table} ({', '.join(columns)}) VALUES ({', '.join(placeholders)})",
+                values,
             )
-            conn.commit()
-
-    @classmethod
-    def get(cls, **kwargs):
-        """Returns specific Config setting data"""
-        with conn_db() as (conn, cursor):
-            conn.row_factory = dict_factory
-            clauses = [f"{key} = ?" for key in kwargs]
-            params = tuple(kwargs.values())
-            if "addon_id" not in kwargs:
-                clauses.append("addon_id IS NULL")
-            cursor.execute(
-                f"SELECT * from {cls.table_name} WHERE {', '.join(clauses)}", params
-            )
-            data = cursor.fetchall()
-            if not data:
-                return []
-            return [ConfigData(**entry) for entry in data]
-
-    def set_config(self, key, **kwargs):
-        setattr(self, key, ConfigData(parent=self, attr_name=key, **kwargs))
-
-    def list_keys(self):
-        return [key for key in vars(self).keys() if key != "type"]
-
-    def data(self):
-        """Returns only 'key':'value' from ConfigData, instead of all meta-data"""
-        data = {}
-        for key in self.list_keys():
-            data[key] = str(getattr(self, key))
-        return data
-
-    def __getitem__(self, key):
-        return vars(self)[key]
-
-
-    def __setitem__(self, key, value):
-        if hasattr(self, key):
-            cd = getattr(self, key)
-            if isinstance(cd, ConfigData):
-                cd._value = value
-                return
-        raise KeyError(f"Config key: '{key}' does not exists")
-
-    def update(self):
-        success = True
-        data = []
-        for key in self.list_keys():
-            config_data = getattr(self, key)
-            key_data = {
-                "key": key,
-                "value": str(getattr(self, key))
-            }
-            for meta_key, meta_value in config_data.items():
-                key_data[meta_key] = meta_value
-            data.append(key_data)
-        try:
-            with conn_db() as (conn, cursor):
-                for entry in data:
-                    set_clauses = []
-                    params = []
-                    for key, value in entry.items():
-                        if key in self.non_update:  # Keys not no be updated
-                            continue
-                        set_clauses.append(f"{key} = ?")
-                        params.append(value)
-                    params.append(entry["id"])
-                    query = f"UPDATE {self.table_name} SET {', '.join(set_clauses)}, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
-                    cursor.execute(query, params)
-                    if cursor.rowcount == 0:
-                        success = False
-                conn.commit()
-        except sqlite3.Error as e:
-            log.error(f"Config update error: {e}")
-            raise ValueError(f"Config update error: {e}") from e
-        return success
 
 
 def get_config(addon_name=None, addon_id=None):
-    config = None
+    if addon_name is None and addon_id is None:
+        return Config()
 
     with conn_db() as (conn, cursor):
-        conn.row_factory = dict_factory
-
-        if addon_name:
+        if addon_name and addon_id is None:
             data = cursor.execute(
                 "SELECT * FROM addon_table WHERE name=?", (addon_name,)
             ).fetchone()
@@ -505,35 +486,26 @@ def get_config(addon_name=None, addon_id=None):
             else:
                 raise KeyError(f"Addon '{addon_name}' not installed")
 
-        query = f"SELECT * FROM setup_table WHERE addon_id {'= ?' if addon_id else 'IS NULL'}"
-        params = (addon_id,) if addon_id else ()
-        data = cursor.execute(query, params).fetchall()
-        if data:
-            config = Config(addon_id=addon_id)
-            for entry in data:
-                config_key = entry.pop("key")
-                config.set_config(config_key, **entry)
-        else:
-            raise ValueError("Setup Table not found! Please restart the Oshkelosh app.")
-    return config
+    return Config(addon_id=addon_id)
 
 
 def set_configs():
-    """Returns all config settings"""
-    addon = []
-    with conn_db() as (conn, cursor):
-        conn.row_factory = dict_factory
-        data = cursor.execute("SELECT * FROM addon_table").fetchall()
-        if data:
-            for entry in data:
-                addon.append(entry)
+    """Returns all front-end config settings"""
     configs = {}
-    site_config = get_config()
+    site_config = Config()
+    style_id = None
+    log.info(f"Fetching config data for style: {site_config['style']}")
+    with conn_db() as (conn, cursor):
+        cursor.execute(
+            "SELECT * FROM addon_table WHERE name=? AND type=?", (str(site_config["style"]), "STYLE")
+        )
+        data = cursor.fetchone()
+        if not data:
+            raise KeyError("Style not installed")
+        style_id = data["id"]
+    style_config = Config(addon_id = style_id)
 
-    style_name = str(site_config["style"])
-    style_config = get_config(addon_name = style_name)
-    configs={
+    return{
         "style_config" : style_config,
         "site_config" : site_config
     }
-    return configs

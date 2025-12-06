@@ -9,6 +9,7 @@ log = get_logger(__name__)
 
 BLUEPRINTS = []
 
+
 def register_blueprint(bp, *, url_prefix=None):
     """Helper used inside each blueprint's __init__.py"""
     BLUEPRINTS.append((bp, url_prefix))
@@ -19,3 +20,7 @@ def init_blueprints(app: Flask) -> None:
         app.register_blueprint(bp, url_prefix=prefix)
         log.info("Blueprint registered: %s → %s", bp.name, prefix or "/")
     log.info("All %d blueprints registered", len(BLUEPRINTS))
+
+from .admin import *
+from .main import *
+from .user import *

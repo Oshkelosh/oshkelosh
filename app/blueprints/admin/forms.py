@@ -2,7 +2,7 @@
 from flask_wtf import FlaskForm
 from wtforms import StringField, IntegerField, BooleanField, SubmitField, SelectField, EmailField
 
-from app.database import models
+from app.models import models
 
 def dynamic_form(configs):
     type_map = {

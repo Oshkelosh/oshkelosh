@@ -18,15 +18,15 @@ def cache_config() -> None:
     One-time (per startup or admin change) push of all site config to Redis.
     Safe to call multiple times — overwrites existing keys.
     """
-    from app.models import models  # late import — avoids circular dependency
+    from app.models import models
 
-    configs = models.set_configs()  # ← you already have something like this
+    configs = models.set_configs()  
     if not configs:
         log.warning("No site configs found in DB — Redis cache will be empty")
         return
 
     pipe = redis_client.client.pipeline()
-    for key, config in configs:
+    for key, config in configs.items():
         key = f"{CONFIG_PREFIX}{key}"
         value = json.dumps(config.data())  
         pipe.set(key, value)

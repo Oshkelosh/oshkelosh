@@ -1,10 +1,11 @@
-{% extends 'basic/templates/base.html' %}
+{% extends 'base.html' %}
 
 {% block head %}
-<link rel="stylesheet" href="{{ url_for('main.static', filename='style.css') }}">
+<link rel="stylesheet" href="{{ url_for('theme_static.serve_static', filename='style.css') }}">
 {% endblock %}
 
 {% block content %}
+
 	<div class="header">
 	</div>
 	<h1>Args view</h1>

@@ -1,17 +1,15 @@
 import os
 from typing import Optional
 
-from flask import Flask
+from flask import Flask, Blueprint,  send_from_directory
+
 from dotenv import load_dotenv
 
 from .config import config_by_name
 from .utils.logging import setup_logging
 from .utils.extensions import login_manager, redis_client
 from .database import DBClient
-from .styles import get_theme_loader, get_theme_static
-from .models import models  
-from .blueprints import init_blueprints
-from .utils.error_handlers import register_error_handlers
+from .styles import get_theme_loader
 
 load_dotenv()  
 db = DBClient()
@@ -54,19 +52,22 @@ def create_app(config_name: Optional[str] = None) -> Flask:
         # ------------------------------------------------------------------
         # Database & defaults
         # ------------------------------------------------------------------
-        from .database.schema import schema
+        from app.database.schema import schema
         db.init_app(app, schema)
-        from .database import default_list
+        from app.models import models
+        from app.database import default_list
         models.set_defaults(default_list = default_list)
 
         # Cache site config in Redis
-        from .utils.site_config import cache_config
+        from app.utils.site_config import cache_config
         cache_config()
 
         # ------------------------------------------------------------------
         # Blueprints & error handlers
         # ------------------------------------------------------------------
+        from .blueprints import init_blueprints
         init_blueprints(app)
+        from .utils.error_handlers import register_error_handlers
         register_error_handlers(app)
 
         #-------------------------------------------------------------------
@@ -79,12 +80,13 @@ def create_app(config_name: Optional[str] = None) -> Flask:
         # ------------------------------------------------------------------
         # Theme / Template / Static resolution
         # ------------------------------------------------------------------
-        theme_loader = get_theme_loader()
-        theme_static_folder, theme_static_url = get_theme_static()
+        @app.before_request
+        def dynamic_style():
+            app.jinja_loader = get_theme_loader()
+        
+        from .styles import theme_static_bp
 
-        app.jinja_loader = theme_loader
-        app.static_folder = theme_static_folder
-        app.static_url_path = theme_static_url
+        app.register_blueprint(theme_static_bp)
 
         app.logger.info("Oshkelosh %s server ready (theme: %s)", config_name, app.config.get("ACTIVE_THEME", 'basic'))
 

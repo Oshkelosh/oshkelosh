@@ -19,8 +19,8 @@ from wtforms import EmailField, PasswordField, SubmitField
 from wtforms.validators import DataRequired, Email, Length
 
 from . import bp
-from app.database import models
-import app.helpers as helpers
+from app.models import models
+from app.utils import helpers
 import json, os, random
 
 

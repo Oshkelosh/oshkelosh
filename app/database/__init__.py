@@ -1,11 +1,19 @@
 from .migrations import setupDB
-from app.models import models
+from .defaults import default_list
 
 import os
 from contextlib import contextmanager
 from typing import Any, Tuple, Dict
+from pathlib import Path
+from urllib.parse import urlparse
+
+from retry import retry
+
+import sqlite3, pymysql, psycopg2 
 
 from app.utils.logging import get_logger
+
+import json
 
 logger = get_logger(__name__)
 
@@ -27,6 +35,9 @@ class DBClient:
         self.uri = uri
         setupDB(schema = schema, uri=uri)
 
+    def _dict_factory(self, cursor, row):
+        return {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
+
     @retry(tries=3, delay=1, backoff=2, exceptions=(sqlite3.OperationalError, psycopg2.OperationalError, pymysql.OperationalError))
     def _connect(self) -> Tuple[Any, Any, str]:
         """Establish connection/ cursor with timeout/retry."""
@@ -37,11 +48,13 @@ class DBClient:
                 os.makedirs(os.path.dirname(db_path), exist_ok=True)
             conn = sqlite3.connect(db_path, timeout=10)
             conn.execute("PRAGMA foreign_keys = OFF")
+            conn.row_factory = self._dict_factory
             return conn, conn.cursor(), "sqlite"
         
         if self.uri.startswith(("postgresql://", "postgres://")):
             conn = psycopg2.connect(self.uri, connect_timeout=10)
             cur = conn.cursor()
+            cur.row_factory = self._dict_factory
             cur.execute("SET client_min_messages TO WARNING;")
             return conn, cur, "postgres"
         
@@ -56,6 +69,8 @@ class DBClient:
                 charset="utf8mb4",
                 connect_timeout=10,
             )
+            cur = conn.cursor
+            cur.row_factory = self._dict_factory
             return conn, conn.cursor(), "mysql"
         raise ValueError(f"Unsupported DATABASE_URI: {self.uri}")
 
@@ -102,8 +117,8 @@ class DBClient:
         with self.connection(autocommit=False) as (conn, cursor):
             if self.backend == "sqlite":
                 cursor.execute(f"PRAGMA table_info({table_name})")
-                # cid, name, type, notnull, dflt_value, pk
-                return {row[1].lower(): row[2].lower() for row in cursor.fetchall()}
+                data = cursor.fetchall()
+                return {entry['name'].lower(): entry['type'].lower() for entry in data}
 
             else:  # PostgreSQL + MySQL
                 cursor.execute("""
@@ -113,4 +128,5 @@ class DBClient:
                       AND table_schema = CURRENT_SCHEMA()
                     ORDER BY ordinal_position
                 """, (table_name,))
-                return {row[0].lower(): row[1].lower() for row in cursor.fetchall()}
+                data = cursor.fetchall()
+                return {entry['column_name'].lower(): entry['data_type'].lower() for entry in data}
