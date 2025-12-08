@@ -16,7 +16,7 @@ default_list = [
             "name": "John",
             "surname": "Doe",
             "email": "admin@admin.com",
-            "password": bcrypt.hashpw("Oshkelosh".encode(), bcrypt.gensalt()).decode(),
+            "password": bcrypt.hashpw("Oshkelosh".encode('utf-8'), bcrypt.gensalt()).decode('utf-8'),
         },
     },
     {

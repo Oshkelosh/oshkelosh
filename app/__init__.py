@@ -75,7 +75,8 @@ def create_app(config_name: Optional[str] = None) -> Flask:
         #-------------------------------------------------------------------
         @login_manager.user_loader
         def load_user(user_id: int):
-            return models.User.get(id=user_id)
+            users = models.User.get(id=user_id)
+            return users[0] if users else None
     
         # ------------------------------------------------------------------
         # Theme / Template / Static resolution

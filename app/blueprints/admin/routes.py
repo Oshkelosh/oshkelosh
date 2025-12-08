@@ -5,6 +5,7 @@ from flask import (
     url_for,
     flash
 )
+import jinja2, os
 from . import bp
 
 from flask_login import current_user, login_required
@@ -18,7 +19,12 @@ import json
 @bp.route("/")
 @login_required
 def index():
-    return render_template("/index.html")
+    print('='*60)
+    config_dict = jinja2.__dict__
+    for entry in config_dict:
+        print(f'{entry} : {config_dict[entry]}')
+    print('='*60)
+    return render_template("admin/index.html")
 
 @bp.route("/settings", methods=["GET", "POST"])
 @bp.route("/settings/<addon_id>", methods=["GET", "POST"])

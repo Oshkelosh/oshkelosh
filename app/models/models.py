@@ -178,7 +178,7 @@ class User(UserMixin, BaseClass):
     non_update = ["id", "created_at", "updated_at"]
 
     def check_password(self, input_password):
-        return bcrypt.checkpw(input_password.encode(), self.password.encode())
+        return bcrypt.checkpw(input_password.encode('utf-8'), self.password.encode('utf-8'))
 
     def update_password(self, old_password, new_password):
         if not bcrypt.checkpw(old_password.encode(), self.password.encode()):

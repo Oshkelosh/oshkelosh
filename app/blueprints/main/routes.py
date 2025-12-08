@@ -31,7 +31,8 @@ def index():
 @bp.route("/about")
 def about():
     return render_template(
-        helpers.template_route("main/about.html"), site=helpers.site_data()
+        "main/about.html",
+        site = site_config.get_config("site_config")
     )
 
 @bp.route("/category/<category_id>")
@@ -44,11 +45,10 @@ def category(category_id):
     categories = models.Category.get()
     categories = [entry.data() for entry in categories]
     return render_template(
-        helpers.template_route('main/category.html'),
-        site = helpers.site_data(),
+        "main/category.html",
+        site = site_config.get_config("site_config"),
         category = category,
         products = products,
-        categories = categories
     )
 
 @bp.route('/product/<product_id>')
@@ -58,19 +58,9 @@ def product(id):
     categories = models.Category.get()
     categories = [entry.data() for entry in categories]
     return render_template(
-        helpers.template_route('main/product.html'),
-        site = helpers.site_data(),
+        "main/product.html",
+        site = site_config.get_config("site_config"),
         product = product,
-        categories = categories
     )
 
 
-#@bp.route("/static/<path:filename>")
-#def static(filename):
-#    if filename == "style.css":
-#        css_path = os.path.join("app", helpers.static_route(), filename)
-#        with open(css_path, "r") as f:
-#            css_content = f.read()
-#        rendered = render_template_string(css_content, style=helpers.style_data())
-#        return Response(rendered, mimetype="text/css")
-#    return send_from_directory(helpers.static_route(), filename)

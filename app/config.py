@@ -1,4 +1,7 @@
 import os
+from dotenv import load_dotenv
+from pathlib import Path
+
 from datetime import timedelta
 from typing import Type
 
@@ -7,11 +10,15 @@ from flask import Flask
 DEFAULT_LOG_LEVEL = "INFO"
 DEFAULT_LOG_FORMAT = "%(asctime)s | %(name)-20s | %(levelname)-8s | %(message)s"
 DEFAULT_LOG_DATEFMT = "%Y-%m-%d %H:%M:%S"
-DEFAULT_LOG_FILE = None  
+DEFAULT_LOG_FILE = None
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(dotenv_path=f"{BASE_DIR}.env")
+
 
 class Config:
     """Base configuration – never use directly."""
-    SECRET_KEY: str | None = None  
+    SECRET_KEY: str | None = os.getenv("APP_SECRET", "")
 
     SESSION_COOKIE_SAMESITE = "Strict"
     SESSION_COOKIE_HTTPONLY = True
@@ -34,7 +41,6 @@ class Config:
 
     @staticmethod
     def init_app(app: Flask) -> None:
-        """Hook for future extensions (e.g. Flask-Mail, Talisman)."""
         pass
 
 

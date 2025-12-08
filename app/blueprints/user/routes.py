@@ -20,7 +20,7 @@ from wtforms.validators import DataRequired, Email, Length
 
 from . import bp
 from app.models import models
-from app.utils import helpers
+from app.utils import site_config 
 import json, os, random
 
 
@@ -36,16 +36,16 @@ def login():
         users = models.User.get(email=form.email.data)
         user = users[0] if users else None
         if user and user.check_password(form.password.data):
+            login_user(user)
             if 'cart' in session:
                 user.cart.extend(session['cart'])
                 user.update()
                 session.pop('cart', None)
-            login_user(user)
             return redirect(url_for('main.index'))
         flash('Invalid login attempt')
     return render_template(
-        helpers.template_route("user/login.html"),
-        site=helpers.site_data(),
+        "user/login.html",
+        site = site_config.get_config("site_config"),
         login_form = form
     )
 
@@ -54,8 +54,8 @@ def login():
 def logout():
     logout_user()
     return render_template(
-        helpers.template_route("user/logout.html"),
-        site=helpers.site_data()
+        "user/logout.html",
+        site = site_config.get_config("site_config"),
     )
 
 
@@ -63,8 +63,8 @@ def logout():
 @login_required
 def profile():
     return render_template(
-        helpers.template_route("user/profile.html"),
-        site=helpers.site_data(),
+        "user/profile.html",
+        site = site_config.get_config("site_config"),
     )
 
 @bp.route("/cart")
@@ -92,8 +92,8 @@ def cart():
                     }
                     cart_products.append(details)
     return render_template(
-        helpers.template_route("user/cart.html"),
-        site=helpers.site_data(),
+        "user/cart.html",
+        site = site_config.get_config("site_config"),
         products = cart_products,
     )
 
@@ -101,8 +101,8 @@ def cart():
 @login_required
 def checkout():
     return render_template(
-        helpers.template_route("user/checkout.html"),
-        site=helpers.site_data(),
+        "user/checkout.html",
+        site = site_config.get_config("site_config"),
     )
 
 @bp.route('/addcart', methods=['POST'])

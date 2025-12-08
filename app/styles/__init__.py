@@ -24,11 +24,13 @@ def get_theme_loader() -> jinja2.ChoiceLoader:
     """
     theme = get_config("style_config")
     theme_path = os.path.join(current_app.root_path, "styles", theme["template_path"])
+    default_path = os.path.join(current_app.root_path, "templates")
 
     loaders = [
         jinja2.FileSystemLoader(theme_path),
-        current_app.jinja_loader,  # fallback to app/templates/
-    ]
+        jinja2.FileSystemLoader(default_path),
+        #current_app.jinja_loader,  # fallback to app/templates/
+        ]
 
     if not os.path.exists(theme_path):
         log.warning("Theme '%s' templates missing — falling back only", theme)
