@@ -21,12 +21,12 @@ schema = [
         "table_columns": {
             "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
             "user_id": "INTEGER NOT NULL",
-            "type": "TEXT DEFAULT 'SHIPPING' CHECK (type IN ('SHIPPING', 'BILLING')",
+            "type": "TEXT DEFAULT 'SHIPPING' CHECK (type IN ('SHIPPING', 'BILLING'))",
             "street": "TEXT NOT NULL",
             "city": "TEXT NOT NULL",
             "state": "TEXT",
             "postal_code": "TEXT NOT NULL",
-            "country": "TEXT NOT NULL",
+            "country": "TEXT",
             "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
             "updated_at": "TIMESTAMP",
             "FOREIGN KEY":[

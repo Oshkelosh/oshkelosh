@@ -160,8 +160,9 @@ def _create_table(cursor, table_name: str, cols_def: Dict, backend: str):
         for fk in fks:
             instr = fk.get("instruction", "").strip()
             parts.append(f"FOREIGN KEY ({fk['key']}) REFERENCES {fk['parent_table']}({fk['parent_key']}) {instr}")
-    
-    cursor.execute(f"CREATE TABLE {table_name} ({', '.join(parts)})")
+    execute_text = f"CREATE TABLE {table_name} ({', '.join(parts)})"
+    print(execute_text)
+    cursor.execute(execute_text)
 
 def setupDB(schema: List[Dict], uri: str):
     """
