@@ -16,15 +16,18 @@ Setup to be done via the .env file. Reference the .env_sample, or simply remove 
 ### This project is not even close to ready for production!
 
 ### Progress:
+
 As of now, the app launches with sqlite setting up.
 
 ### Working on:
-I'm creating addons for Printful, Paypal and Postmark to get basic functionality ready
+
+Finishing routes and logic for basic functionality(manual product add, ect)
 
 ### Still to do:
-- Create basic addons
+
 - Finish up models for basic functionality
 - Finish all routes for blueprints
+- Create basic addons
 - Finish 'basic' style
 - Clean up and Standardize code
 - Start expanding on standard addons
