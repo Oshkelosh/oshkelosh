@@ -25,10 +25,8 @@ schema = [
             "street": "TEXT NOT NULL",
             "city": "TEXT NOT NULL",
             "state": "TEXT",
-            "city": "TEXT NOT NULL",
-            "state": "TEXT NOT NULL",
-            "country": "TEXT NOT NULL",
             "postal_code": "TEXT NOT NULL",
+            "country": "TEXT NOT NULL",
             "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
             "updated_at": "TIMESTAMP",
             "FOREIGN KEY":[
