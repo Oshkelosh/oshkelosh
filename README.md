@@ -62,55 +62,68 @@ Setup to be done via the .env file. Reference the .env_sample, or simply remove 
 - **Order Tracking**: SQLite-stored orders with webhook support for status updates.
 - **Modular Design**: Easy to extend processors in `app/processor.py` (e.g., add Stripe or Guten).
 
-Customize templates in `app/templates/` and static assets in `app/static/`.
+Customize templates in `app/styles/<style>/templates` and static assets in `app/styles/<style>/theme/<theme>/static`.
 
 ## Project Structure
 ```
 oshkelosh/
-├── run.py                 # Oshkelosh entry point
+├── wsgi.py                 # Oshkelosh entry point
 ├── app/
-│   ├── __init__.py
-│   ├── processor.py       # Integration manager(Suppliers, Payments and Services)
+│   ├── __init__.py         # Main app initialization
 │   │
-│   ├── main/              # Main blueprint (Index, Products/Categories and login)
-│   │   ├── __init__.py
-│   │   ├── routes.py
-│   │   └── forms.py
-│   ├── admin/             # Admin blueprint (Dashboard, Product/Payment & User management)
-│   │   ├── __init__.py
-│   │   ├── routes.py
-│   │   └── forms.py
-│   ├── user/              # User blueprint (User profile, Cart & Checkout)
-│   │   ├── __init__.py
-│   │   ├── routes.py
-│   │   └── forms.py
+│   ├── config.py           # App config(development, production, testing, default)
 │   │
-│   ├── addons/             # Externally loaded modules
+│   ├── addons/             # Shop addons (Suppliers, Payment Proccessors, notification, ect)
 │   │   ├── __init__.py
-│   │   ├── styles/         # Templates and static files for 'main' and 'user' blueprints
-│   │   ├── payments/       # Scripts for interacting with payment proccessors
-│   │   ├── suppliers/      # Scripts for interacting with suppliers
-│   │   └── messaging/      # Scripts for sending communication with clients and admin
+│   │   ├── <addon>
+│   │   └── <addon>
 │   │
-│   ├── database/
+│   ├── blueprints/         # Blueprint (Main, User, Admin)
 │   │   ├── __init__.py
-│   │   ├── migrations.py   # Database creation
-│   │   ├── models.py       # Database interaction
-│   │   └── schema.py       # Databse setup/layout
+│   │   ├── main/
+│   │   │   ├── __init__.py
+│   │   │   └── routes.py
+│   │   ├── user/
+│   │   │   ├── __init__.py
+│   │   │   └── routes.py
+│   │   └── admin/
+│   │       ├── __init__.py
+│   │       └── routes.py
 │   │
-│   └── helpers/
-│       └── __init__.py     # Various functions for static/template routes and site/style data
+│   ├── database/           # Database scripts
+│   │   ├── __init__.py
+│   │   ├── migrations.py
+│   │   ├── schema.py
+│   │   └── defaults.py
+│   │
+│   ├── models/             # Database Interaction Classes
+│   │   └── models.py
+│   │
+│   ├── styles/             # Multiple styles can be loaded, with each style having multiple themes(static)
+│   │   ├── <style>
+│   │   │   ├── templates/
+│   │   │   └── theme/
+│   │   │       ├── <theme>
+│   │   │       │   └── static/
+│   │   │       └── <theme>
+│   │   ├── <style>
+│   │   └── <style>
+│   │
+│   ├── templates/
+│   │   └── core/           # Default templates for 'admin'
+│   │
+│   └── static/             # Static files for admin and other non themed assets 
 │
 ├── tests/
 │
-├── data/                  # SQLite DB (gitignored)
+├── instance/               # SQLite DB (gitignored)
 │   ├── database.db
-│   └── images/            # Product images
+│   └── images/             # Product images
 │
-├── .env                   # SECRET_KEY and FLASK_ENV (gitignored)
+├── .env                    # SECRET_KEY and FLASK_ENV (gitignored)
 │
-├── flask_config.py              # Flask environment configs
 ├── requirements.txt
+│
 └── README.md
 ```
 

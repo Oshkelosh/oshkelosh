@@ -11,20 +11,19 @@ from . import bp
 from flask_login import current_user, login_required
 
 from app.models import models
+from app.utils.site_config import invalidate_config_cache
 
 from . import forms
 
 import json
 
+
+
+
 @bp.route("/")
 @login_required
 def index():
-    print('='*60)
-    config_dict = jinja2.__dict__
-    for entry in config_dict:
-        print(f'{entry} : {config_dict[entry]}')
-    print('='*60)
-    return render_template("admin/index.html")
+    return render_template("core/index.html")
 
 @bp.route("/settings", methods=["GET", "POST"])
 @bp.route("/settings/<addon_id>", methods=["GET", "POST"])
@@ -43,19 +42,14 @@ def settings(addon_id = None):
                 setup[field.name] = field.data
                 update = True
         if update:
-            success = setup.update()
-            if success:
-                flash("Configs successfully updated!", "success")
-                oshkelosh = models.set_configs()
-                for key, config in oshkelosh.items():
-                    current_app.redis.set(key, json.dumps(config.data()))
+            invalidate_config_cache("site_config")
+            invalidate_config_cache("style_config")
 
-            else:
-                flash("Failed updating Configs!", "error")
+
         return redirect(url_for('admin.settings', addon_id=addon_id))
 
     return render_template(
-        "settings.html",
+        "core/settings.html",
         form = form,
         addons = addons
     )
@@ -64,10 +58,10 @@ def settings(addon_id = None):
 @bp.route("/suppliers")
 @login_required
 def suppliers():
-    return render_template("suppliers.html")
+    return render_template("core/suppliers.html")
 
 @bp.route("/payments")
 @login_required
 def payments():
-    return render_template("payments.html")
+    return render_template("core/payments.html")
 

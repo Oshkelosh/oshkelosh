@@ -14,6 +14,8 @@ from flask import current_app, Blueprint, send_from_directory, render_template_s
 from app.utils.site_config import get_config
 from app.utils.logging import get_logger
 
+import json
+
 log = get_logger(__name__)
 
 def get_theme_loader() -> jinja2.ChoiceLoader:
@@ -27,9 +29,9 @@ def get_theme_loader() -> jinja2.ChoiceLoader:
     default_path = os.path.join(current_app.root_path, "templates")
 
     loaders = [
+        #jinja2.FileSystemLoader(default_path),
         jinja2.FileSystemLoader(theme_path),
-        jinja2.FileSystemLoader(default_path),
-        #current_app.jinja_loader,  # fallback to app/templates/
+        current_app.jinja_loader,  # fallback to app/templates/
         ]
 
     if not os.path.exists(theme_path):
@@ -45,9 +47,10 @@ theme_static_bp = Blueprint(
 )
 
 @theme_static_bp.route("/<path:filename>")
-def serve_static(filename):
+def serve(filename):
     style_config = get_config('style_config')
     folder = os.path.join(current_app.root_path, "styles", style_config["static_path"])
+    print(json.dumps(style_config, indent=4))
 
     if not os.path.exists(folder):
         log.warning("Theme '%s' static folder missing — serving empty", style_config["static_path"])
@@ -67,6 +70,42 @@ def serve_static(filename):
             rendered_template = render_template_string(
                 template_content,
                 style = style_config
+            )
+            response = current_app.response_class(
+                rendered_template,
+                mimetype="text/css"
+            )
+            # Optional: aggressive caching since content is deterministic per theme
+            response.headers["Cache-Control"] = "public, max-age=3600"
+            return response
+        except Exception as e:
+            log.error(f"Failed rendering dynamic css: {e}")
+            abort(500)
+
+    return send_from_directory(folder, filename)
+
+@theme_static_bp.route("/core/<path:filename>")
+def core(filename):
+    folder = os.path.join(current_app.root_path, "static")
+    print(str(folder))
+
+    if not os.path.exists(folder):
+        log.warning("Theme '%s' static folder missing — serving empty")
+        # Return empty dir fallback to avoid Flask errors
+        folder = os.path.join(current_app.instance_path, "empty_static")
+        os.makedirs(folder, exist_ok=True)
+
+    if filename.lower().endswith('.css'):
+        file_path = os.path.abspath(os.path.join(folder,filename))
+        if not file_path.startswith(os.path.abspath(folder)):
+            abort(404)
+        if not os.path.isfile(file_path):
+            abort(404)
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                template_content = f.read()
+            rendered_template = render_template_string(
+                template_content,
             )
             response = current_app.response_class(
                 rendered_template,

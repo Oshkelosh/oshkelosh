@@ -10,6 +10,7 @@ from .utils.logging import setup_logging
 from .utils.extensions import login_manager, redis_client
 from .database import DBClient
 from .styles import get_theme_loader
+from pathlib import Path
 
 load_dotenv()  
 db = DBClient()
@@ -23,8 +24,8 @@ def create_app(config_name: Optional[str] = None) -> Flask:
     app = Flask(
         __name__,
         instance_relative_config=True,
-        static_folder=None,
-        template_folder=None,
+        static_folder="static",
+        template_folder="templates",
     )
 
     # ------------------------------------------------------------------
@@ -58,9 +59,22 @@ def create_app(config_name: Optional[str] = None) -> Flask:
         from app.database import default_list
         models.set_defaults(default_list = default_list)
 
+        # ------------------------------------------------------------------
         # Cache site config in Redis
+        # ------------------------------------------------------------------
         from app.utils.site_config import cache_config
         cache_config()
+
+        # ------------------------------------------------------------------
+        # Theme / Template / Static resolution
+        # ------------------------------------------------------------------
+        @app.before_request
+        def dynamic_style():
+            app.jinja_loader = get_theme_loader()
+        
+        from .styles import theme_static_bp
+
+        app.register_blueprint(theme_static_bp)
 
         # ------------------------------------------------------------------
         # Blueprints & error handlers
@@ -78,17 +92,6 @@ def create_app(config_name: Optional[str] = None) -> Flask:
             users = models.User.get(id=user_id)
             return users[0] if users else None
     
-        # ------------------------------------------------------------------
-        # Theme / Template / Static resolution
-        # ------------------------------------------------------------------
-        @app.before_request
-        def dynamic_style():
-            app.jinja_loader = get_theme_loader()
-        
-        from .styles import theme_static_bp
-
-        app.register_blueprint(theme_static_bp)
-
         app.logger.info("Oshkelosh %s server ready (theme: %s)", config_name, app.config.get("ACTIVE_THEME", 'basic'))
 
     return app
