@@ -1,0 +1,11 @@
+@layer utilities {
+	.flex { display: flex; }
+	.gap { gap: 1rem; }
+
+	.pad { padding: 1rem; }
+	.pad-sm { padding: 0.5rem; }
+
+	.txt-large { font-size: 1.25rem; }
+
+	.hide { display: none; }
+}

@@ -1,0 +1,21 @@
+/* layout.css */
+@layer components {
+
+
+
+	.main-container { display: flex; min-height: 100vh; }
+	.main { flex: auto; }
+	.side-bars { flex: auto; }
+
+	.header, .content, .footer {
+	  background:  color-mix(in oklch, var(--color-canvas), var(--color-mid-grey) 10%);
+	  padding: 1rem;
+	  border-radius: 1rem;
+	  box-shadow: var(--shadow-md);
+	  margin: 1rem;
+	}
+
+	.header   { margin-bottom: 0; }
+	.content  { margin-top: 0; }
+	.footer   { text-align: center; margin-top: auto; }
+}

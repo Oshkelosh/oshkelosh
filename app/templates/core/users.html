@@ -3,9 +3,29 @@
 <h2>Administrators</h2>
 {% if admins %}
 <table>
-	<tr><th colspan="2">Name</th><th>Email</th><th>Phone nr</th>{% if admins|count > 1 %}<th>Remove as Admin</th>{% endif %}</tr>
+	<tr>
+		<th colspan="2">Name</th><th>Email</th><th>Phone nr</th>
+		{% if admins|count > 1 %}<th>Remove as Admin</th>{% endif %}
+	</tr>
 {% for admin in admins %}
-	<tr><td>{{ admin.name }}</td><td>{{ admin.surname }}</td><td>{{ admin.email }}</td><td>{{ admin.phone }}</td>{% if admins|count > 1 %}<td><button>Remove</button></td>{% endif %}</tr>
+	<tr>
+		<td>{{ admin.name }}</td>
+		<td>{{ admin.surname }}</td>
+		<td>{{ admin.email }}</td>
+		<td>{{ admin.phone }}</td>
+		{% if admins|count > 1 %}
+		<td>
+			<form method="POST"
+				action="{{ url_for('admin.set_user_role', id=admin.id, direction='REMOVE') }}"
+				onsubmit="return confirm('Demote {{ admin.name }} {{ admin.surname }} from Admin?');">
+				{{ csrf_token() }}
+				<button type="submit" class="btn btn--danger btn--sm">
+					Remove
+				</button>
+			</form>
+		</td>
+		{% endif %}
+	</tr>
 {% endfor %}
 </table>
 {% else %}
@@ -14,9 +34,26 @@
 <h2>Clients</h2>
 {% if users %}
 <table>
-	<tr><th colspan="2">Name</th><th>Email</th><th>Phone nr</th><th>Add as Admin</th></tr>
+	<tr>
+		<th colspan="2">Name</th><th>Email</th><th>Phone nr</th><th>Add as Admin</th>
+	</tr>
 {% for user in users %}
-	<tr><td>{{ user.name }}</td><td>{{ user.surname }}</td><td>{{ user.email }}</td><td>{{ user.phone }}</td><td><button>Add</button></td></tr>
+	<tr>
+		<td>{{ user.name }}</td>
+		<td>{{ user.surname }}</td>
+		<td>{{ user.email }}</td>
+		<td>{{ user.phone }}</td>
+		<td>
+			<form method="POST"
+				action="{{ url_for('admin.set_user_role', id=user.id, direction='ADD') }}"
+				onsubmit="return confirm('Promote {{ user.name }} {{ user.surname }} to Admin?');">
+				{{ csrf_token() }}
+				<button type="submit" class="btn btn--danger btn--sm">
+					Add as Admin
+				</button>
+			</form>
+		</td>
+	</tr>
 {% endfor %}
 </table>
 {% else %}

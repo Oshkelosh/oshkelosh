@@ -1,0 +1,16 @@
+@layer base {
+	html {
+		background: var(--color-canvas);
+		color: var(--color-ink);
+		font-family: system-ui, sans-serif;
+	}
+	h1 { font-size: 2.5rem; font-weight: 700; }
+	h2 { font-size: 2rem;   font-weight: 700; }
+	h3 { font-size: 1.5rem; font-weight: 600; }
+
+	a { color: var(--color-link); text-decoration: none; }
+	a:hover { text-decoration: underline; }
+
+	input { background: color-mix(in oklch, var(--color-canvas), var(--color-mid-grey) 50%); }
+
+}

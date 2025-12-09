@@ -3,7 +3,11 @@
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<link rel="stylesheet" href="{{ url_for('theme_static.core', filename='css/style.css') }}">
+	<link rel="stylesheet" href="{{ url_for('theme_static.core', filename='css/_reset.css') }}">
+	<link rel="stylesheet" href="{{ url_for('theme_static.core', filename='css/colors.css') }}">
+	<link rel="stylesheet" href="{{ url_for('theme_static.core', filename='css/base.css') }}">
+	<link rel="stylesheet" href="{{ url_for('theme_static.core', filename='css/layout.css') }}">
+	<link rel="stylesheet" href="{{ url_for('theme_static.core', filename='css/buttons.css') }}">
 </head>
 <body>
 		<div class="main-container">
@@ -12,14 +16,14 @@
 				<div class="header">
 					<h1>Oshkelosh Admin Panel</h1>
 					<h2>Welcome, {{ current_user.name }}</h2>
-					<a class="button" href="{{ url_for('admin.index') }}">Main</a>
-					<a class="button" href="{{ url_for('admin.settings') }}">Site Settings</a>
-					<a class="button" href="{{ url_for('admin.users') }}">Users</a>
-					<a class="button" href="{{ url_for('admin.products') }}">Products</a>
-					<a class="button" href="{{ url_for('admin.suppliers') }}">Suppliers</a>
-					<a class="button" href="{{ url_for('admin.payment_processors') }}">Payment Preccessors</a>
-					<a class="button" href="{{ url_for('admin.addons') }}">Addons</a>
-					<a class="button" href="{{ url_for('main.index') }}">~ Shop Front ~</a>
+					<a class="btn" href="{{ url_for('admin.index') }}">Main</a>
+					<a class="btn" href="{{ url_for('admin.settings') }}">Site Settings</a>
+					<a class="btn" href="{{ url_for('admin.users') }}">Users</a>
+					<a class="btn" href="{{ url_for('admin.products') }}">Products</a>
+					<a class="btn" href="{{ url_for('admin.suppliers') }}">Suppliers</a>
+					<a class="btn" href="{{ url_for('admin.payment_processors') }}">Payment Preccessors</a>
+					<a class="btn" href="{{ url_for('admin.addons') }}">Addons</a>
+					<a class="btn" href="{{ url_for('main.index') }}">~ Shop Front ~</a>
 
 				</div>
 				<br>

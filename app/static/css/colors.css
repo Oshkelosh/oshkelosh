@@ -1,0 +1,38 @@
+
+:root {
+	--lch-blue: 54% 0.15 255;
+	--lch-red: 51% 0.2 31;
+	--lch-green: 65% 0.23 142;
+
+	--color-mid-grey: oklch(50% 0 0);
+
+	--color-canvas: oklch(98% 0 0);     /* Neutral background */
+	--color-ink: oklch(15% 0 0);        /* Primary text */
+	--color-link: oklch(var(--lch-blue));
+	--color-negative: oklch(var(--lch-red));
+	--color-positive: oklch(var(--lch-green));
+
+	--shadow-color: color-mix(in oklch, var(--color-ink) 15%, transparent);
+	--shadow-sm: 0 1px 3px var(--shadow-color);
+	--shadow-md: 0 4px 12px var(--shadow-color);
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+	--lch-blue: 72% 0.16 248;
+	--lch-red: 74% 0.18 29;
+	--lch-green: 75% 0.20 145;
+	--color-canvas: oklch(18% 0 0);    /* Dark neutral */
+	--color-ink: oklch(95% 0 0);       /* Light text */
+	
+
+  }
+}
+
+@media (prefers-contrast: high) {
+	:root {
+	--lch-blue: oklch(50% 0.2 255);
+	--lch-red: oklch(50% 0.25 31);
+	--lch-green: oklch(55% 0.25 142);
+	}
+}

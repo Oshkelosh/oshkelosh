@@ -2,9 +2,9 @@
 {% block content %}
 <h2>Site Settings</h2>
 <div>
-	<a class="button" href="{{ url_for('admin.settings') }}">Main</a>
+	<a class="btn" href="{{ url_for('admin.settings') }}">Main</a>
 	{% for addon in addons %}
-	<a class="button" href="{{ url_for('admin.settings', addon_id=addon.id) }}">{{ addon.name|capitalize }} {{ addon.type|capitalize }}</a>
+	<a class="btn" href="{{ url_for('admin.settings', addon_id=addon.id) }}">{{ addon.name|capitalize }} {{ addon.type|capitalize }}</a>
 	{% endfor %}
 </div>
 <br>
