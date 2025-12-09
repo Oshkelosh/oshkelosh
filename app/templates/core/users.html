@@ -1,0 +1,26 @@
+{% extends 'core/base.html' %}
+{% block content %}
+<h2>Administrators</h2>
+{% if admins %}
+<table>
+	<tr><th colspan="2">Name</th><th>Email</th><th>Phone nr</th>{% if admins|count > 1 %}<th>Remove as Admin</th>{% endif %}</tr>
+{% for admin in admins %}
+	<tr><td>{{ admin.name }}</td><td>{{ admin.surname }}</td><td>{{ admin.email }}</td><td>{{ admin.phone }}</td>{% if admins|count > 1 %}<td><button>Remove</button></td>{% endif %}</tr>
+{% endfor %}
+</table>
+{% else %}
+<p>No Administrators Registered, which is weird. How can you see this message?</p>
+{% endif %}
+<h2>Clients</h2>
+{% if users %}
+<table>
+	<tr><th colspan="2">Name</th><th>Email</th><th>Phone nr</th><th>Add as Admin</th></tr>
+{% for user in users %}
+	<tr><td>{{ user.name }}</td><td>{{ user.surname }}</td><td>{{ user.email }}</td><td>{{ user.phone }}</td><td><button>Add</button></td></tr>
+{% endfor %}
+</table>
+{% else %}
+<p>No Clients signed up yet, which is weird. How have you been promoting your shop??</p>
+{% endif %}
+{% endblock %}
+
