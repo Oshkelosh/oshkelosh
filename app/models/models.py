@@ -188,6 +188,21 @@ class User(UserMixin, BaseClass):
         return True
 
 
+class Address(BaseClass):
+    table_name = "address_table"
+    non_update = ["id", "user_id", "type", "created_at", "updated_at"]
+
+
+class Cart(BaseClass):
+    table_name = "cart_table"
+    non_update = ["id", "user_id", "product_id", "created_at", "updated_at"]
+
+    def delete(self):
+        with conn_db() as (connection, cursor):
+            query = "DELETE FROM cart_table WHERE id = ?"
+            data = [getattr(self, 'id')]
+            cursor.execute(query, data)
+            connection.commit()
 
 class Product(BaseClass):
     table_name = "product_table"
