@@ -14,24 +14,18 @@ from flask import (
 
 from flask_login import login_user, logout_user, login_required, current_user
 
-from flask_wtf import FlaskForm
-from wtforms import EmailField, PasswordField, SubmitField
-from wtforms.validators import DataRequired, Email, Length
-
 from . import bp
+from . import forms
 from app.models import models
 from app.utils import site_config 
 import json, os, random
 
 
-class loginForm(FlaskForm):
-    email = EmailField('Email', validators=[DataRequired(), Email()])
-    password = PasswordField('Password', validators=[DataRequired(), Length(min=6)])
-    submit = SubmitField('Log In')
+
 
 @bp.route("/login", methods=["GET","POST"])
 def login():
-    form = loginForm()
+    form = forms.loginForm()
     if form.validate_on_submit():
         users = models.User.get(email=form.email.data)
         user = users[0] if users else None
@@ -56,6 +50,61 @@ def logout():
     return render_template(
         "user/logout.html",
         site = site_config.get_config("site_config"),
+    )
+
+@bp.route("/signup", methods=["GET", "POST"])
+def signup():
+    form = forms.signupForm()
+    if form.validate_on_submit():
+        user_data = {
+            "name": form.name.data,
+            "surname": form.surname.data,
+            "email": form.email.data,
+            "phone": form.phone.data,
+            "password": form.password.data,
+        }
+
+        billing_address = {
+            "type": "BILLING",
+            "street": form.billing_street.data,
+            "city": form.billing_city.data,
+            "state": form.billing_state.data,
+            "postal_code": form.billing_postal_code.data,
+            "country": form.billing_country.data,
+        }
+
+        shipping_address = {
+            "type": "SHIPPING",
+            "street": form.shipping_street.data,
+            "city": form.shipping_city.data,
+            "state": form.shipping_state.data,
+            "postal_code": form.shipping_postal_code.data,
+            "country": form.shipping_country.data,
+        }
+        from app import db
+        try:
+            user = models.User.new(**user_data)
+            if not user:
+                flash("Something went wrong, could not register the user")
+                return redirect(url_for("main.index"))
+            user.add_address(**billing_address)
+            user.add_address(**shipping_address)
+            
+            login_user(user)
+            flash("Successfully registered!")
+            return redirect(url_for("main.index"))
+
+        except db.IntegrityError as e:
+            if db.is_duplicate(e, 'email'):
+                form.email.errors.append("This email is already registered.")
+            else:
+                flash("Something went wrong during client registration")
+            return redirect(url_for("main.index"))
+
+    return render_template(
+        "user/signup.html",
+        site = site_config.get_config("site_config"),
+        signup_form = form
     )
 
 

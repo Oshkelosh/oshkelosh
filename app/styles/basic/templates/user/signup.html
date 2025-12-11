@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('theme_static.serve', filename='style.css') }}">
+
+{% endblock %}
+
+{% block content %}
+<h2 style="text-align:center;">Sign Up</h2>
+<form method="POST" novalidate>
+    {{ signup_form.csrf_token }}
+    <table>
+        {% macro field_row(field) %}
+        <tr>
+            <td>{{ field.label }}</td>
+            <td>
+                {{ field }}
+                {% if field.errors %}
+                    <span style="color: red; font-size: 0.9em;">
+                        {{ field.errors|join('<br>') }}
+                    </span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endmacro %}
+
+        {{ field_row(signup_form.name) }}
+        {{ field_row(signup_form.surname) }}
+        {{ field_row(signup_form.email) }}
+        {{ field_row(signup_form.phone) }}
+
+        <tr><td colspan="2"><strong>Billing Address</strong></td></tr>
+        {{ field_row(signup_form.billing_street) }}
+        {{ field_row(signup_form.billing_city) }}
+        {{ field_row(signup_form.billing_state) }}
+        {{ field_row(signup_form.billing_postal_code) }}
+        {{ field_row(signup_form.billing_country) }}
+
+        <tr><td colspan="2"><strong>Shipping Address</strong></td></tr>
+        {{ field_row(signup_form.shipping_street) }}
+        {{ field_row(signup_form.shipping_city) }}
+        {{ field_row(signup_form.shipping_state) }}
+        {{ field_row(signup_form.shipping_postal_code) }}
+        {{ field_row(signup_form.shipping_country) }}
+
+        {{ field_row(signup_form.password) }}
+
+        <tr>
+            <td colspan="2">{{ signup_form.submit }}</td>
+        </tr>
+    </table>
+</form>
+{% endblock %}

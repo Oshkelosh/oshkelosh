@@ -145,7 +145,7 @@ def setupDB(schema: List[Dict], db: Any) -> None:
     if not schema:
         log.error("No schema provided")
         return
-    backend_str = db.backend.value.lower()
+    backend_str = db.backend
     if backend_str == "postgresql":
         backend_str = "postgres"
 

@@ -187,6 +187,10 @@ class User(UserMixin, BaseClass):
         self.update()
         return True
 
+    def add_address(self, **kwargs):
+        kwargs["user_id"] = self.id
+        return Address.new(**kwargs)
+
 
 class Address(BaseClass):
     table_name = "address_table"

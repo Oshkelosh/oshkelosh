@@ -12,7 +12,7 @@ from retry import retry
 from enum import StrEnum, auto
 import sqlite3, pymysql, psycopg2
 
-from typing import Any, Dict, Generator, Tuple, Literal, ClassVar
+from typing import Any, Dict, Generator, Tuple, Literal, ClassVar, Type
 
 from app.utils.logging import get_logger
 
@@ -26,20 +26,20 @@ class Backend(StrEnum):
     MYSQL = auto()
 
 class DBClient:
-    OperationalError: ClassVar[type] = (
-        sqlite3.OperationalError
-        | psycopg2.OperationalError
-        | pymysql.err.OperationalError
+    OperationalError: ClassVar[Tuple[Type[BaseException], ...]] = (
+        sqlite3.OperationalError,
+        psycopg2.OperationalError,
+        pymysql.err.OperationalError
     )
-    ProgrammingError: ClassVar[type] = (
-        sqlite3.ProgrammingError
-        | psycopg2.ProgrammingError
-        | pymysql.err.ProgrammingError
+    ProgrammingError: ClassVar[Tuple[Type[BaseException], ...]] = (
+        sqlite3.ProgrammingError,
+        psycopg2.ProgrammingError,
+        pymysql.err.ProgrammingError
     )
-    IntegrityError: ClassVar[type] = (
-        sqlite3.IntegrityError
-        | psycopg2.IntegrityError
-        | pymysql.err.IntegrityError
+    IntegrityError: ClassVar[Tuple[Type[BaseException], ...]] = (
+        sqlite3.IntegrityError,
+        psycopg2.IntegrityError,
+        pymysql.err.IntegrityError
     )
 
     def __init__(self):
@@ -47,19 +47,28 @@ class DBClient:
         self.backend = None
         self._row_factory = self._dict_factory
 
-    def init_app(self, app, schema):
+    def init_app(self, app):
         uri = (
             app.config.get("DATABASE_URI")
             or app.config.get("SQLALCHEMY_DATABASE_URI")
             or app.config.get("DATABASE_URL")
             or os.getenv("DATABASE_URL")
         )
+        if uri.startswith("sqlite:///"):
+            self.backend = Backend.SQLITE
+        elif uri.startswith(("postgresql://", "postgres://")):
+            self.backend = Backend.POSTGRESQL
+        elif uri.startswith(("mysql://", "mariadb://")):
+            self.backend = Backend.MYSQL
+        else:
+            raise ValueError(f"Unsupported DATABASE_URI: {self.uri}")
+
+
 
         if not uri:
             raise RuntimeError("No Database config found")
         self.uri = uri
 
-        setupDB(schema = schema, uri=uri)
 
     def checkDB(self, schema):
         setupDB(schema, self)
@@ -77,7 +86,7 @@ class DBClient:
         if not self.uri:
             raise RuntimeError("DBClient no initialized. Call init_app() first.")
 
-        if self.uri.startswith("sqlite:///"):
+        if self.backend == "sqlite":
             path = self.uri.split(":///", 1)[-1] or ":memory:"
             db_path = str(Path(path).expanduser().resolve()) if path != ":memory:" else ":memory:"
             if db_path != ":memory:":
@@ -86,10 +95,9 @@ class DBClient:
             conn.execute("PRAGMA foreign_keys = OFF")
             conn.execute("PRAGMA journal_mode = WAL")
             conn.row_factory = self._row_factory
-            self.backend = Backend.SQLITE
             return conn, conn.cursor()
         
-        if self.uri.startswith(("postgresql://", "postgres://")):
+        if self.backend == "postgresql":
             conn = psycopg2.connect(self.uri, connect_timeout=10)
             conn.set_session(autocommit=False)
             cur = conn.cursor()
@@ -98,7 +106,7 @@ class DBClient:
             self.backend = Backend.POSTGRES
             return conn, conn.cursor()
         
-        if self.uri.startswith(("mysql://", "mariadb://")):
+        if self.backend == "mysql":
             parsed = urlparse(self.uri)
             conn = pymysql.connect(
                 host=parsed.hostname or "localhost",
@@ -114,7 +122,7 @@ class DBClient:
             self.backend = Backend.MYSQL
             return conn, conn.cursor()
 
-        raise ValueError(f"Unsupported DATABASE_URI: {self.uri}")
+        raise ValueError(f"Unsupported Database Backend: {self.backend}")
 
     @contextmanager
     def connection(self, autocommit: bool = True) -> Generator[Tuple[Any, Any], None, None]:
@@ -132,15 +140,18 @@ class DBClient:
                 conn.commit()
         except self.OperationalError as e:
             conn.rollback()
-            logger.warning("Transient DB error (will retry on next call): %s", e)
+            logger.warning(f"Transient DB error (will retry on next call): {e}")
             raise
-        except (self.ProgrammingError, self.IntegrityError) as e:
+        except self.ProgrammingError as e:
             conn.rollback()
-            logger.error("Database error: %s", e)
+            logger.error(f"Database Programming error: {e}")
             raise
-        except Exception:
+        except self.IntegrityError as e:
+            logger.info(f"Integrity Error during DB operation: {e}")
+            raise
+        except Exception as e:
             conn.rollback()
-            logger.exception("Unexpected DB error")
+            logger.exception(f"Unexpected DB error: {e}")
             raise
         finally:
             try:
