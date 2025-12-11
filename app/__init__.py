@@ -54,7 +54,8 @@ def create_app(config_name: Optional[str] = None) -> Flask:
         # Database & defaults
         # ------------------------------------------------------------------
         from app.database.schema import schema
-        db.init_app(app, schema)
+        db.init_app(app)
+        db.checkDB(schema)
         from app.models import models
         from app.database import default_list
         models.set_defaults(default_list = default_list)

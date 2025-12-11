@@ -9,7 +9,10 @@ from urllib.parse import urlparse
 
 from retry import retry
 
-import sqlite3, pymysql, psycopg2 
+from enum import StrEnum, auto
+import sqlite3, pymysql, psycopg2
+
+from typing import Any, Dict, Generator, Tuple, Literal, ClassVar
 
 from app.utils.logging import get_logger
 
@@ -17,11 +20,33 @@ import json
 
 logger = get_logger(__name__)
 
+class Backend(StrEnum):
+    SQLITE = auto()
+    POSTGRESQL = auto()
+    MYSQL = auto()
 
 class DBClient:
+    OperationalError: ClassVar[type] = (
+        sqlite3.OperationalError
+        | psycopg2.OperationalError
+        | pymysql.err.OperationalError
+    )
+    ProgrammingError: ClassVar[type] = (
+        sqlite3.ProgrammingError
+        | psycopg2.ProgrammingError
+        | pymysql.err.ProgrammingError
+    )
+    IntegrityError: ClassVar[type] = (
+        sqlite3.IntegrityError
+        | psycopg2.IntegrityError
+        | pymysql.err.IntegrityError
+    )
+
     def __init__(self):
         self.uri = None
         self.backend = None
+        self._row_factory = self._dict_factory
+
     def init_app(self, app, schema):
         uri = (
             app.config.get("DATABASE_URI")
@@ -33,30 +58,45 @@ class DBClient:
         if not uri:
             raise RuntimeError("No Database config found")
         self.uri = uri
+
         setupDB(schema = schema, uri=uri)
+
+    def checkDB(self, schema):
+        setupDB(schema, self)
 
     def _dict_factory(self, cursor, row):
         return {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
 
-    @retry(tries=3, delay=1, backoff=2, exceptions=(sqlite3.OperationalError, psycopg2.OperationalError, pymysql.OperationalError))
-    def _connect(self) -> Tuple[Any, Any, str]:
+    @retry(tries=3,
+           delay=1,
+           backoff=2,
+           exceptions=(OperationalError,),
+           )
+    def _connect(self) -> Tuple[Any, Any]:
         """Establish connection/ cursor with timeout/retry."""
+        if not self.uri:
+            raise RuntimeError("DBClient no initialized. Call init_app() first.")
+
         if self.uri.startswith("sqlite:///"):
             path = self.uri.split(":///", 1)[-1] or ":memory:"
             db_path = str(Path(path).expanduser().resolve()) if path != ":memory:" else ":memory:"
             if db_path != ":memory:":
                 os.makedirs(os.path.dirname(db_path), exist_ok=True)
-            conn = sqlite3.connect(db_path, timeout=10)
+            conn = sqlite3.connect(db_path, timeout=30, check_same_thread=False)
             conn.execute("PRAGMA foreign_keys = OFF")
-            conn.row_factory = self._dict_factory
-            return conn, conn.cursor(), "sqlite"
+            conn.execute("PRAGMA journal_mode = WAL")
+            conn.row_factory = self._row_factory
+            self.backend = Backend.SQLITE
+            return conn, conn.cursor()
         
         if self.uri.startswith(("postgresql://", "postgres://")):
             conn = psycopg2.connect(self.uri, connect_timeout=10)
+            conn.set_session(autocommit=False)
             cur = conn.cursor()
-            cur.row_factory = self._dict_factory
             cur.execute("SET client_min_messages TO WARNING;")
-            return conn, cur, "postgres"
+            conn.cursor_factory = psycopg2.extras.RealDictCursor
+            self.backend = Backend.POSTGRES
+            return conn, conn.cursor()
         
         if self.uri.startswith(("mysql://", "mariadb://")):
             parsed = urlparse(self.uri)
@@ -67,15 +107,17 @@ class DBClient:
                 password=parsed.password or "",
                 database=parsed.path.lstrip("/") or None,
                 charset="utf8mb4",
+                autocommit=False,
                 connect_timeout=10,
             )
-            cur = conn.cursor
-            cur.row_factory = self._dict_factory
-            return conn, conn.cursor(), "mysql"
+            conn.cursorclass = pymysql.cursors.DictCursor
+            self.backend = Backend.MYSQL
+            return conn, conn.cursor()
+
         raise ValueError(f"Unsupported DATABASE_URI: {self.uri}")
 
     @contextmanager
-    def connection(self, autocommit: bool = True):
+    def connection(self, autocommit: bool = True) -> Generator[Tuple[Any, Any], None, None]:
         """
         Context manager for conn/cursor.
         Usage:
@@ -83,50 +125,83 @@ class DBClient:
             cur.execute("SELECT * FROM table", params)
             results = cur.fetchall()
         """
-        conn, cur, backend = self._connect()
-        self.backend = backend  # Cache for type-specific logic if needed
+        conn, cur = self._connect()
         try:
             yield conn, cur
             if autocommit:
                 conn.commit()
+        except self.OperationalError as e:
+            conn.rollback()
+            logger.warning("Transient DB error (will retry on next call): %s", e)
+            raise
+        except (self.ProgrammingError, self.IntegrityError) as e:
+            conn.rollback()
+            logger.error("Database error: %s", e)
+            raise
         except Exception:
             conn.rollback()
+            logger.exception("Unexpected DB error")
             raise
         finally:
-            if backend == "sqlite":
-                conn.execute("PRAGMA foreign_keys = ON")
-            cur.close()
-            conn.close()
+            try:
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
 
-    def execute(self, query: str, params: Tuple = (), fetch: str = "all") -> Any:
-        """Execute query with params; fetch='all', 'one', 'none'."""
-        with self.connection(autocommit=True) as (conn, cursor):
-            cursor.execute(query, params)
+    def execute(
+        self,
+        query: str,
+        params: tuple | dict | None = None,
+        fetch: Literal["all", "one", "none"] = "all",
+    ) -> Any:
+        with self.connection() as (conn, cur):
+            cur.execute(query, params or ())
             if fetch == "all":
-                return cursor.fetchall()
-            elif fetch == "one":
-                return cursor.fetchone()
+                return cur.fetchall()
+            if fetch == "one":
+                return cur.fetchone()
             return None
 
-    def get_columns(self, table_name: str) -> Dict[str,str]:
-        """
-        Return a dict of {column_name: data_type} for the given table.
-        Works with SQLite, PostgreSQL, and MySQL.
-        Column names are normalized to lowercase.
-        """
-        with self.connection(autocommit=False) as (conn, cursor):
-            if self.backend == "sqlite":
-                cursor.execute(f"PRAGMA table_info({table_name})")
-                data = cursor.fetchall()
-                return {entry['name'].lower(): entry['type'].lower() for entry in data}
+    def get_columns(self, table_name: str) -> Dict[str, str]:
+        if self.backend == "sqlite":
+            res = self.execute(f"PRAGMA table_info({table_name})", fetch="all")
+            return {row["name"].lower(): row["type"].lower() for row in res}
+        elif self.backend == "postgresql":
+            sql = """
+                SELECT column_name, data_type
+                FROM information_schema.columns
+                WHERE table_name = %s
+                  AND table_schema = current_schema()
+                ORDER BY ordinal_position
+            """
+            res = self.execute(sql, (table_name,), fetch="all")
+            return {row["column_name"].lower(): row["data_type"].lower() for row in res}
+        elif self.backend == "mysql":
+            sql = """
+                SELECT column_name, data_type
+                FROM information_schema.columns
+                WHERE table_name = %s
+                  AND table_schema = DATABASE()
+                ORDER BY ordinal_position
+            """
+            res = self.execute(sql, (table_name,), fetch="all")
+            return {row["column_name"].lower(): row["data_type"].lower() for row in res}
+        else:
+            raise ValueError(f"Unsupported backend: {self.backend}")
 
-            else:  # PostgreSQL + MySQL
-                cursor.execute("""
-                    SELECT column_name, data_type
-                    FROM information_schema.columns
-                    WHERE table_name = %s
-                      AND table_schema = CURRENT_SCHEMA()
-                    ORDER BY ordinal_position
-                """, (table_name,))
-                data = cursor.fetchall()
-                return {entry['column_name'].lower(): entry['data_type'].lower() for entry in data}
+    @staticmethod
+    def is_duplicate(exc: Exception, column: str | None = None) -> bool:
+        """
+        Checks if Exception is for duplicate entry error
+        """
+        msg = str(exc).lower()
+        checks = ["unique", "duplicate", "uniq_", "key"]
+        if not any(c in msg for c in checks):
+            return False
+        if column:
+            return column.lower() in msg
+        return True
