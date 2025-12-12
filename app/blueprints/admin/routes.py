@@ -8,6 +8,7 @@ from flask import (
 )
 import jinja2, os
 from . import bp
+from app.utils import site_config
 
 from flask_login import current_user, login_required
 
@@ -36,13 +37,13 @@ def index():
     return render_template("core/index.html")
 
 @bp.route("/settings", methods=["GET", "POST"])
-@bp.route("/settings/<addon_id>", methods=["GET", "POST"])
+@bp.route("/settings/<style_name>", methods=["GET", "POST"])
 @admin_required
-def settings(addon_id = None):
-    setup = models.get_config(addon_id = addon_id)
+def settings(style_name = None):
+    setup = models.get_config(addon_name = style_name)
     formClass = forms.dynamic_form(setup)
     form = formClass()
-    addons = models.Addon.get()
+    style = site_config.get_config("style_config")  #Get current style details
     if form.validate_on_submit():
         update = False
         for field in form:
@@ -56,12 +57,12 @@ def settings(addon_id = None):
             invalidate_config_cache("style_config")
 
 
-        return redirect(url_for('admin.settings', addon_id=addon_id))
+        return redirect(url_for('admin.settings', style_name=style_name))
 
     return render_template(
         "core/settings.html",
         form = form,
-        addons = addons
+        style = style
     )
 
 @bp.route('/users')
@@ -102,10 +103,33 @@ def products():
         "core/products.html"
     )
 
-@bp.route("/suppliers")
+@bp.route("/suppliers", methods=["GET", "POST"])
 @admin_required
 def suppliers():
-    return render_template("core/suppliers.html")
+    addons = models.Addon.get(type="SUPPLIER")
+    supplier_configs = [models.Config(addon_id = addon.id) for addon in addons]
+    form_instance = {}
+
+    submitted_id = None
+
+    for supplier in supplier_configs:
+        formClass = forms.dynamic_form(supplier)
+        form = formClass()
+        forms.append(form)
+        if form.validate_on_submit():
+            update = False
+            for field in form:
+                if field.name in ["submit", "csrf_token"]:
+                    continue
+                if supplier[field.name] != field.data:
+                    setattr(supplier, field.name, field.data)
+                    update = True
+            if update:
+                supplier.update()
+    return render_template(
+        "core/suppliers.html",
+        suppliers = forms
+    )
 
 @bp.route("/payment-processors")
 @admin_required

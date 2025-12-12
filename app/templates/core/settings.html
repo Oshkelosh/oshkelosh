@@ -3,9 +3,7 @@
 <h2>Site Settings</h2>
 <div>
 	<a class="btn" href="{{ url_for('admin.settings') }}">Main</a>
-	{% for addon in addons %}
-	<a class="btn" href="{{ url_for('admin.settings', addon_id=addon.id) }}">{{ addon.name|capitalize }} {{ addon.type|capitalize }}</a>
-	{% endfor %}
+	<a class="btn" href="{{ url_for('admin.settings', style_name=style.name) }}">{{ style.name|capitalize }} Style</a>
 </div>
 <br>
 <div>

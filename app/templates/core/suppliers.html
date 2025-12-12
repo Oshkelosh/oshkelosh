@@ -1,7 +1,23 @@
-{% extends 'base.html' %}
+{% extends 'core/base.html' %}
 {% block content %}
-<h2> Main</h2>
-<p>Supplier details goes here</P>
-<br>
+<h2>Suppliers</h2>
+{% for form in suppliers %}
+<div>
+	<form method="POST">
+		{{ form.hidden_tag() }}
+		{% for field in form %}
+		{% if field.name != 'csrf_token' and field.type != 'SubmitField' %}
+		<div>
+			{%  if field.description %}<p>{{ field.description }}</p>{% endif %}
+			{{ field.label }} {{ field() }}
+			{% if field.errors %}{{ field.errors[0] }}{% endif %}
+		</div>
+		{% endif %}
+		{% endfor %}
+		<br>
+		{{ form.submit() }}
+	</form>
+</div>
+{% endfor %}
 {% endblock %}
 

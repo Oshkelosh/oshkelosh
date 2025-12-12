@@ -347,6 +347,12 @@ class Addon(BaseClass):
                 )
                 module_name = f"app.styles.{kwargs['name'].lower()}"
 
+            elif kwargs['type'] == "SUPPLIER":
+                addon_path = (
+                    Path('app') / 'addons' / 'suppliers' / kwargs['name'].lower()
+                )
+                module_name = f"app.addons.suppliers.{kwargs['name'].lower()}"
+
             spec = importlib.util.spec_from_file_location(
                 module_name, addon_path / "__init__.py"
             )
@@ -436,7 +442,7 @@ class Config:
                 cur.execute(f"SELECT * FROM setup_table WHERE addon_id = ?", (self._addon_id,))
             result = cur.fetchall()
             if not result:
-                raise ValueError(f"Config data for {f"addon_id:{self.addon_id}" if self.addon_id else "site"} not found, check defaults.")
+                raise ValueError(f"Config data for {f"addon_id:{self._addon_id}" if self._addon_id else "site"} not found, check defaults.")
             for row in result:
                 data = ConfigData(
                     value=row["value"],
@@ -491,12 +497,14 @@ class Config:
             )
 
 
-def get_config(addon_name=None, addon_id=None):
-    if addon_name is None and addon_id is None:
-        return Config()
+def get_config(addon_name=None, addon_id=None, addon_type=None):
+    query = ""
+
+    if addon_id is not None:
+        return Config(addon_id=addon_id)
 
     with conn_db() as (conn, cursor):
-        if addon_name and addon_id is None:
+        if addon_name is not None:
             data = cursor.execute(
                 "SELECT * FROM addon_table WHERE name=?", (addon_name,)
             ).fetchone()
@@ -504,8 +512,20 @@ def get_config(addon_name=None, addon_id=None):
                 addon_id = data["id"]
             else:
                 raise KeyError(f"Addon '{addon_name}' not installed")
+            return Config(addon_id = addon_id)
 
-    return Config(addon_id=addon_id)
+        if addon_type is not None:
+            data = cursor.execute(
+                "SELECT * FROM addon_table WHERE type=?", (addon_type.upper(),)
+            ).fetchall()
+            if data:
+                id_list = [entry["id"] for entry in data]
+            else:
+                return []
+            print(str(id_list))
+            return [Config(addon_id = addon_id) for addon_id in id_list]
+
+    return Config()
 
 
 def set_configs():

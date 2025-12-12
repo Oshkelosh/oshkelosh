@@ -20,18 +20,6 @@ default_list = [
         },
     },
     {
-        "object_name": "ADDON",
-        "type": "NOT_NULL",
-        "key": "name",
-        "value": "basic",
-        "data": {
-            "type": "STYLE",
-            "description": "Basic style and theme",
-            "active": "1",
-            "config": {},
-        },
-    },
-    {
         "object_name": "SETUP",
         "type": "NOT_NULL",
         "key": "key",
@@ -77,4 +65,29 @@ default_list = [
             "description": "The 'About' page text",
         },
     },
+    {
+        "object_name": "ADDON",
+        "type": "NOT_NULL",
+        "key": "name",
+        "value": "basic",
+        "data": {
+            "type": "STYLE",
+            "description": "Basic style and theme",
+            "active": "1",
+            "config": {},
+        },
+    },
+    {
+        "object_name": "ADDON",
+        "type": "NOT_NULL",
+        "key": "name",
+        "value": "printful",
+        "data": {
+            "type": "SUPPLIER",
+            "description": "Printful Shop api",
+            "active": "1",
+            "config": {},
+        },
+    },
+
 ]
