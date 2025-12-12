@@ -1,8 +1,6 @@
 import requests
 import json
 
-from app.database import models
-from app.exceptions import AuthorizationError
 
 def check_token(token=None, scopes=None) -> bool:
     if token is None:
@@ -22,10 +20,8 @@ def check_token(token=None, scopes=None) -> bool:
         return False
 
 
-def get_sync_products(admin: models.User, printful: models.Config):
-    if admin.role != 'ADMIN':
-        raise AuthorizationError('Unauthorized action')
-    token = printful.oauth_token
+def get_sync_products(token):
+        
     url = "https://api.printful.com/store/products"
     header = {
         "Authorization" : f"Bearer {token}"
@@ -37,8 +33,7 @@ def get_sync_products(admin: models.User, printful: models.Config):
         json_result = result.json()
     except Exception as e:
         return
-    synced_products = models.Product.get(supplier_id = printful.id)
-    for product in json_result:
-        found = False
+    for product in json_result["result"]:
+        print(json.dumps(product, indent=4))
 
 

@@ -1,6 +1,12 @@
-from .functions import sync
+from .functions import get_sync_products
 
-defaults = [
+def sync_product(printful_data):
+    get_sync_products(getattr(printful_data, "token"))
+
+
+
+
+default_list = [
     {
         "object_name": "SETUP",
         "type": "NOT_NULL",
