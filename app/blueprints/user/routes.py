@@ -18,7 +18,9 @@ from . import bp
 from . import forms
 from app.models import models
 from app.utils import site_config 
+
 import json, os, random
+import bcrypt
 
 
 
@@ -56,12 +58,13 @@ def logout():
 def signup():
     form = forms.signupForm()
     if form.validate_on_submit():
+        password = str(form.password.data)
         user_data = {
             "name": form.name.data,
             "surname": form.surname.data,
             "email": form.email.data,
             "phone": form.phone.data,
-            "password": form.password.data,
+            "password": bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         }
 
         billing_address = {
@@ -111,9 +114,13 @@ def signup():
 @bp.route("/profile")
 @login_required
 def profile():
+    addresses = models.Address.get(user_id=current_user.id)
+    orders = models.Order.get(user_id = current_user.id)
     return render_template(
         "user/profile.html",
         site = site_config.get_config("site_config"),
+        addresses = addresses,
+        orders = orders
     )
 
 @bp.route("/cart")
