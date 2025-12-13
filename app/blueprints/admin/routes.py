@@ -107,28 +107,40 @@ def products():
 @admin_required
 def suppliers():
     addons = models.Addon.get(type="SUPPLIER")
-    supplier_configs = [models.Config(addon_id = addon.id) for addon in addons]
-    form_instance = {}
+    supplier_data = []
+    for supplier in addons:
+        config = models.Config(addon_id = supplier.id)
+        formClass = forms.dynamic_form(config)
 
-    submitted_id = None
-
-    for supplier in supplier_configs:
-        formClass = forms.dynamic_form(supplier)
-        form = formClass()
-        forms.append(form)
-        if form.validate_on_submit():
+        class extendedForm(formClass):
+            pass
+        form = extendedForm(prefix = f"supplier-{supplier.id}-")
+        
+        if form.submit.data and form.validate_on_submit():
             update = False
             for field in form:
-                if field.name in ["submit", "csrf_token"]:
+                if field.short_name in ["submit", "csrf_token"]:
                     continue
-                if supplier[field.name] != field.data:
-                    setattr(supplier, field.name, field.data)
+                if config[field.short_name] != field.data:
+                    config[field.short_name] = field.data
                     update = True
             if update:
                 supplier.update()
+                flash(f"{supplier.name.capitalize()} data updated")
+                return redirect(url_for('admin.suppliers'))
+
+        data = {
+            "name": supplier.name.capitalize(),
+            "description": supplier.description.capitalize(),
+            "updated_at": supplier.updated_at or supplier.created_at,
+            "version": supplier.version,
+            "form": form
+        }
+        supplier_data.append(data)
+
     return render_template(
         "core/suppliers.html",
-        suppliers = forms
+        suppliers = supplier_data
     )
 
 @bp.route("/payment-processors")

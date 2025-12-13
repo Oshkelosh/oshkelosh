@@ -4,6 +4,8 @@ from wtforms import StringField, IntegerField, BooleanField, SubmitField, Select
 
 from app.models import models
 
+import datetime
+
 def dynamic_form(configs):
     type_map = {
         "TEXT" : StringField,
@@ -20,7 +22,7 @@ def dynamic_form(configs):
         kwargs = {
             "label" : key.capitalize(),
             "default" : configs[key],
-            "description" : configs[key].description
+            "description" : configs[key].description,
         }
         if configs[key].type == "OPTIONS":
             choices = None
