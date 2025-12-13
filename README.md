@@ -170,6 +170,10 @@ oshkelosh/
 I reccomend following the Digital Ocean tutorial for setting up a Flask site with gunicorn and nginx. Check it out [here](https://www.digitalocean.com/community/tutorials/how-to-serve-flask-applications-with-gunicorn-and-nginx-on-ubuntu-22-04#step-5-configuring-nginx-to-proxy-requests)
 
 For production, set `FLASK_ENV=production`
+Generate secure secret keys with:
+'''bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode('utf-8'))"
+'''
 
 ## Contributing
 Fork the repo, create a feature branch, and submit a PR. Focus on modularity and tests (use `pytest`).
