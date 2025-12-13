@@ -74,7 +74,6 @@ default_list = [
             "type": "STYLE",
             "description": "Basic style and theme",
             "active": "1",
-            "config": {},
         },
     },
     {
@@ -86,7 +85,6 @@ default_list = [
             "type": "SUPPLIER",
             "description": "Printful Shop api",
             "active": "1",
-            "config": {},
         },
     },
 

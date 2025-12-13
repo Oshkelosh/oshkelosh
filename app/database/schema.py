@@ -268,9 +268,7 @@ schema = [
             "description": "TEXT",
             "version": "TEXT DEFAULT '1.0'",
             "download_url": "TEXT",
-            "installed": "BOOL DEFAULT 0",
             "active": "BOOL DEFAULT 0",
-            "config": "TEXT DEFAULT '{}'",  # JSON for addon-specific settings
             "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
             "updated_at": "TIMESTAMP",
             "UNIQUE": ["name", "type"],
@@ -285,6 +283,7 @@ schema = [
             "type": "TEXT DEFAULT 'TEXT'",  # Types of input: 'TEXT' 'COLOR' 'OPTIONS'
             "description": "TEXT",
             "editable": "BOOL DEFAULT 1",
+            "secure": "BOOL DEFAULT 0",
             "addon_id": "INTEGER",
             "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
             "updated_at": "TIMESTAMP",

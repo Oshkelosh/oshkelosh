@@ -17,6 +17,7 @@ import bcrypt
 from typing import Any, Dict, Iterator, KeysView, ValuesView, ItemsView, Optional, List
 
 from app.utils.logging import get_logger
+from app.utils import encryption
 log = get_logger(__name__) 
 
 def safe_name(name):
@@ -111,12 +112,17 @@ class BaseClass:
         excess = [col for col in kwargs if col not in table_columns]
         if excess:
             raise KeyError(f"Unknown arguments: {', '.join(excess)}")
+
         for key in kwargs:
             if isinstance(kwargs[key], (dict, list)):
                 try:
                     kwargs[key] = json.dumps(kwargs[key])
                 except (TypeError, ValueError):
                     pass
+
+        if 'secure' in kwargs and kwargs['secure']:
+            kwargs['value'] = encryption.encrypt_data(kwargs['value'])
+
         with conn_db() as (conn, cursor):
             cursor.execute(
                 f"""
@@ -320,7 +326,7 @@ class Addon(BaseClass):
         excess = [col for col in kwargs if col not in table_columns]
         if excess:
             raise KeyError(
-                f"Table Columns not registered for {cls.table_name}: {', '.join(excess)}"
+                f"Table Columns not registered for {cls.table_name}: {', '.join(excess)}\nCheck default_list for invalid key"
             )
         for key in kwargs:
             if isinstance(kwargs[key], (dict, list)):
@@ -409,6 +415,7 @@ class ConfigData(BaseClass):
         """Return all metadata (excluding the raw value)."""
         return {
             "editable": self.editable,
+            "secure": self.secure,
             "description": self.description,
             "addon_id": self.addon_id,
             "created_at":self.created_at,
@@ -445,10 +452,11 @@ class Config:
                 raise ValueError(f"Config data for {f"addon_id:{self._addon_id}" if self._addon_id else "site"} not found, check defaults.")
             for row in result:
                 data = ConfigData(
-                    value=row["value"],
+                    value=encryption.decrypt_data(row["value"]) if row['secure'] else row["value"],
                     editable=bool(row["editable"]),
                     description=row.get("description"),
                     addon_id=row["addon_id"],
+                    secure=row["secure"],
                     created_at = row["created_at"],
                     updated_at = row["updated_at"],
                     id=row["id"],
@@ -464,7 +472,7 @@ class Config:
         """Set value and persist immediately (or queue – your call)."""
         if key not in self._cache:
             raise KeyError(f"Config key '{key}' does not exist")
-        self._cache[key].value = value
+        self._cache[key].value = encryption.encrypt_data(value)
         self._cache[key].update()   # atomic persistence
 
     def __contains__(self, key: str) -> bool:
@@ -487,6 +495,11 @@ class Config:
 
     @classmethod
     def new(cls, key: str, value: Any, *, addon_id: Optional[int] = None, **meta) -> None:
+        log.info('Adding new config')
+        if 'secure' in meta and meta['secure']:
+            log.info(f'Encrypting value: {value}')
+            value = encryption.encrypt_data(value)
+            log.info(f'Encrypted value: {value}')
         with conn_db() as (conn, cursor):
             columns = ["key", "value", "addon_id"] + list(meta.keys())
             placeholders = ["?"] * len(columns)
