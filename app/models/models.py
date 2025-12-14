@@ -223,7 +223,14 @@ class Product(BaseClass):
         "variant_of_id",
         "created_at",
         "updated_at",
+        "is_base",
     ]
+
+    def get_variants(self):
+        base_id = self.id
+        if not self.is_base:
+            base_id = self.variant_of_id
+        return Product.get(variant_of_id = base_id)
 
     def add_category(self, **kwargs):
         pass
