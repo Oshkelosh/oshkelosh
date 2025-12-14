@@ -16,6 +16,7 @@ from functools import wraps
 
 from app.models import models
 from app.utils.site_config import invalidate_config_cache
+from app import processors
 
 from . import forms
 
@@ -35,6 +36,40 @@ def admin_required(f):
 @admin_required
 def index():
     return render_template("core/index.html")
+
+@bp.route("/sync-suppliers", methods=["POST"])
+@admin_required
+def sync_suppliers():
+    processors.sync_products()
+    flash('Syncing Products')
+    return redirect(url_for('admin.index'))
+
+@bp.route("/debug-endpoints")
+@admin_required  # Keep if you want it protected
+def debug_endpoints():
+    """
+    Debug view: Lists all registered endpoints with their methods and rules.
+    Safe for production debugging (remove or protect in real prod).
+    """
+    from flask import current_app
+
+    endpoints = []
+    for rule in current_app.url_map.iter_rules():
+        endpoints.append({
+            'endpoint': rule.endpoint,
+            'methods': sorted(rule.methods),  # GET, POST, etc. (sorted for consistency)
+            'rule': str(rule),
+        })
+
+    # Sort by endpoint name for readability
+    endpoints.sort(key=lambda x: x['endpoint'])
+
+    # Render as simple HTML for easy viewing
+    html = "<h1>Registered Endpoints</h1><ul>"
+    for ep in endpoints:
+        html += f"<li><strong>{ep['endpoint']}</strong>: {', '.join(ep['methods'])} → {ep['rule']}</li>"
+    html += "</ul>"
+    return html, 200
 
 @bp.route("/settings", methods=["GET", "POST"])
 @bp.route("/settings/<style_name>", methods=["GET", "POST"])

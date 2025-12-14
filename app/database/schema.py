@@ -96,6 +96,7 @@ schema = [
             "stock": "INTEGER DEFAULT 0",
             "variant_of_id": "INTEGER",
             "active": "BOOL DEFAULT 1",
+            "is_base": "BOOL DEFAULT 0",
             "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
             "updated_at": "TIMESTAMP",
             "FOREIGN KEY": [
@@ -121,10 +122,12 @@ schema = [
         "table_name": "image_table",
         "table_columns": {
             "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+            "image_id": "TEXT", # ID at supplier
             "product_id": "INTEGER NOT NULL",
-            "title": "TEXT NOT NULL",
+            "title": "TEXT DEFAULT 'Product Image'",
             "alt_text": "TEXT DEFAULT 'An amazing new product!'",
-            "url": "TEXT NOT NULL",
+            "url": "TEXT",
+            "supplier_url": "TEXT NOT NULL",
             "position": "INTEGER DEFAULT 0",
             "FOREIGN KEY": [
                 {

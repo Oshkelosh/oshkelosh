@@ -50,7 +50,6 @@ theme_static_bp = Blueprint(
 def serve(filename):
     style_config = get_config('style_config')
     folder = os.path.join(current_app.root_path, "styles", style_config["static_path"])
-    print(json.dumps(style_config, indent=4))
 
     if not os.path.exists(folder):
         log.warning("Theme '%s' static folder missing — serving empty", style_config["static_path"])
@@ -87,7 +86,6 @@ def serve(filename):
 @theme_static_bp.route("/core/<path:filename>")
 def core(filename):
     folder = os.path.join(current_app.root_path, "static")
-    print(str(folder))
 
     if not os.path.exists(folder):
         log.warning("Theme '%s' static folder missing — serving empty")

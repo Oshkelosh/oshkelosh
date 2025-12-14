@@ -1,8 +1,30 @@
 import requests
+from ratelimit import limits, sleep_and_retry
+
 import json
 
+@sleep_and_retry
+@limits(calls=120, period=60)
+def session(method, url, headers) -> dict:
+    if method == 'GET':
+        response = requests.get(url=url, headers=headers)
+        response.raise_for_status()
+        return response.json()
+    if method == 'POST':
+        response = requests.post(url=url, headers=headers)
+        response.raise_for_status()
+        return response.json()
+    if method == 'PUT':
+        response = requests.put(url=url, headers=headers)
+        response.raise_for_status()
+        return response.json()
+    if method == 'DELTETE':
+        response = requests.delete(url=url, headers=headers)
+        response.raise_for_status()
+        return response.json()
+    raise KeyError("Unknown Method")
 
-def check_token(token=None, scopes=None) -> bool:
+def check_token(token):
     if token is None:
         return False
     url = "https://api.printful.com/oauth/scopes"
@@ -10,30 +32,42 @@ def check_token(token=None, scopes=None) -> bool:
         "Authorization": f"Bearer {token}"
     }
     try:
-        result = requests.get(url=url, headers=header)
-        result.raise_for_status()
-        json_result = result.json()
-        result_scopes = [entry["scope"] for entry in json_result["result"]["scopes"]]
-        success = all(entry in result_scopes for entry in scopes)
-        return success
+        result = session("GET", url=url, headers=header)
+        scope_result = [entry["scope"] for entry in result["result"]["scopes"]]
+        print(json.dumps(scope_result, indent=4))
     except Exception as e:
-        return False
+        print(f"Error during check token: {e}")
 
 
-def get_sync_products(token):
+def get_products(token):
         
-    url = "https://api.printful.com/store/products"
     header = {
         "Authorization" : f"Bearer {token}"
     }
-    json_result = {}
+    offset = 0
+    result_list = []
     try:
-        result = requests.get(url = url, headers = header)
-        result.raise_for_status()
-        json_result = result.json()
+        while True:
+            url = f"https://api.printful.com/store/products?offset={offset}"
+            result = session('GET', url = url , headers = header)
+            result_list.extend(result["result"])
+            next_offset = result["paging"]["offset"] + len(result["result"])
+            if next_offset <= result["paging"]["total"]:
+                break
+            offset = next_offset
+        return result_list
     except Exception as e:
-        return
-    for product in json_result["result"]:
-        print(json.dumps(product, indent=4))
+        print(f"Error during sync products: {e}")
+    return result_list
+
+def get_product_details(token, product_id):        
+    header = {
+        "Authorization" : f"Bearer {token}"
+    }
+    try:
+        url = f"https://api.printful.com/store/products/{product_id}"
+        return session('GET', url = url , headers = header)
+    except Exception as e:
+        print(f"Error during sync product details: {e}")
 
 

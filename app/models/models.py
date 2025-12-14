@@ -535,7 +535,6 @@ def get_config(addon_name=None, addon_id=None, addon_type=None):
                 id_list = [entry["id"] for entry in data]
             else:
                 return []
-            print(str(id_list))
             return [Config(addon_id = addon_id) for addon_id in id_list]
 
     return Config()

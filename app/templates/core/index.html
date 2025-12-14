@@ -5,6 +5,14 @@
 <p>Settings for every aspect of this shop can be found in the above tabs</p>
 <h3>Suppliers last updated goes here</h3>
 <h3>Product Force Sync Button goes here</h3>
+<form
+	method = "POST"
+	action='{{ url_for("admin.sync_suppliers") }}'>
+	<button type="submit"
+	class="btn">
+		Sync
+	</button>
+</form>
 <h3>Business Metrics goes here</h3>
 <p>Orders, Revenue, New customers, Conversion rate, AOV</p>
 <h3>Recent Orders</h3>
