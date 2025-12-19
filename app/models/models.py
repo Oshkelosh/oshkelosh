@@ -183,6 +183,7 @@ class User(UserMixin, BaseClass):
     table_name = "user_table"
     non_update = ["id", "created_at", "updated_at"]
 
+
     def check_password(self, input_password):
         return bcrypt.checkpw(input_password.encode('utf-8'), self.password.encode('utf-8'))
 
@@ -226,6 +227,43 @@ class Product(BaseClass):
         "is_base",
     ]
 
+    @classmethod
+    def get_preview(cls, product_id):
+        product_columns = db.get_columns("product_table")
+        product_query = [f"p.{column} as p_{column}" for column in product_columns.keys()]
+        image_columns = db.get_columns("image_table")
+        image_query = [f"i.{column} as i_{column}" for column in image_columns.keys()]
+
+        select_clause = ",\n    ".join(product_query + image_query)
+
+        query = f"""
+            SELECT 
+                {select_clause}
+            FROM 
+                product_table AS p
+            LEFT JOIN 
+                image_table AS i 
+                ON i.product_id = p.id AND i.position = 1
+            WHERE 
+                p.id = ?
+        """.strip()
+
+        with conn_db() as (conn, cursor):
+            cursor.execute(query, (product_id,))
+            row = cursor.fetchone()
+            
+            if not row:
+                return None
+            
+            # Build dictionaries, excluding NULLs from LEFT JOIN
+            product_data = {col: row[f"p_{col}"] for col in product_columns.keys()}
+            image_data = {col: row[f"i_{col}"] for col in image_columns.keys()}
+
+            product = cls(**product_data)
+            product.primary_image = Image(**image_data) if image_data else None
+
+            return product
+
     def get_variants(self):
         base_id = self.id
         if not self.is_base:
@@ -250,11 +288,27 @@ class Image(BaseClass):
     non_update = ["id", "product_id"]
 
     def delete(self):
+        filename = self.filename
+        file_path = Path(current_app.instance_path) / "images" / filename
         with conn_db() as (connection, cursor):
             query = "DELETE FROM image_table WHERE id = ?"
             data = [getattr(self, 'id')]
             cursor.execute(query, data)
             connection.commit()
+        try:
+            if file_path.is_file():
+                file_path.unlink()
+                return {"success":"File Deleted"}
+            elif file_path.exists():
+                return {"failed":"Path exists but is not a file"}
+            else:
+                return {"success":"File does not exist (nothing to delete)"}
+        except FileNotFoundError:
+            return {"success":"File already deleted or not found"}
+        except PermissionError:
+            return {"failed":"Permission denied deleting"}
+        except OSError:
+            return {"failed":"Error deleting file"}
 
 
 class Order(BaseClass):
@@ -479,7 +533,7 @@ class Config:
         """Set value and persist immediately (or queue – your call)."""
         if key not in self._cache:
             raise KeyError(f"Config key '{key}' does not exist")
-        self._cache[key].value = encryption.encrypt_data(value)
+        self._cache[key].value = encryption.encrypt_data(value) if self._cache[key].secure else value
         self._cache[key].update()   # atomic persistence
 
     def __contains__(self, key: str) -> bool:

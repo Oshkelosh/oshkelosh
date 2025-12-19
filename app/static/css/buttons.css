@@ -1,28 +1,33 @@
-/* buttons.css */
 @layer components{
 	.btn {
-	  display: inline-flex;
-	  align-items: center;
-	  justify-content: center;
-	  gap: 0.5ch;
-	  padding: 0.65em 1.2em;
-	  font-weight: 500;
-	  font-size: 0.875rem;
-	  border-radius: 0.5rem;
-	  cursor: pointer;
-	  transition: all 0.15s ease;
-	  border: 1px solid color-mix(in oklch, var(--color-ink) 20%, transparent);
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: 1ch;
+		margin: 0.5ch;
+		font-weight: 500;
+		font-size: 0.875rem;
+		border-radius: 0.5rem;
+		cursor: pointer;
+		border: 1px solid color-mix(in oklch, var(--color-ink) 20%, transparent);
+		background-color: color-mix(in oklch, var(--color-canvas), var(--color-mid-grey) 20%);
+		color: inherit;
+		text-decoration: none;
+		transition: all 0.35s;
+	}
+	.btn:hover {
+		box-shadow: var(--shadow-md); 
 	}
 
 	.btn--positive {
-	  background: var(--color-positive);
-	  color: white;
+		background-color: var(--color-positive);
+		color: white;
 	}
-	.btn--positive:hover { background: color-mix(in oklch, var(--color-positive) 90%, black); }
+	.btn--positive:hover { background-color: color-mix(in oklch, var(--color-positive) 90%, black); }
 
 	.btn--negative {
-	  background: var(--color-negative);
-	  color: white;
+		background-color: var(--color-negative);
+		color: white;
 	}
-	.btn--negative:hover { background: color-mix(in oklch, var(--color-negative) 90%, black); }
+	.btn--negative:hover { background-color: color-mix(in oklch, var(--color-negative) 90%, black); }
 }

@@ -1,0 +1,16 @@
+{% extends 'core/base.html' %}
+{% block content %}
+<h2>Images</h2>
+{% for image in images %}
+<a href="{{ url_for('admin.image', image_id=image.id) }}" class="list-container">
+	<span class="list-item">
+		<img src="{{ url_for('main.serve_image', filename=image.filename) }}" style="width: 200px; height:200px;">
+	</span>
+	<span class="list-item">
+		<h3>{{ image.title }}</h3>
+		<p>{{ image.alt_text }}</p>
+	</span>
+</a>
+{% endfor %}
+<br>
+{% endblock %}

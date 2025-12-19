@@ -14,9 +14,10 @@ from flask_login import current_user, login_required
 
 from functools import wraps
 
-from app.models import models
+from app.models import models, get_previews
+
 from app.utils.site_config import invalidate_config_cache
-from app import processors
+import app.processor as processors
 
 from . import forms
 
@@ -32,10 +33,12 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_view
 
+
 @bp.route("/")
 @admin_required
 def index():
     return render_template("core/index.html")
+
 
 @bp.route("/sync-suppliers", methods=["POST"])
 @admin_required
@@ -44,32 +47,6 @@ def sync_suppliers():
     flash('Syncing Products')
     return redirect(url_for('admin.index'))
 
-@bp.route("/debug-endpoints")
-@admin_required  # Keep if you want it protected
-def debug_endpoints():
-    """
-    Debug view: Lists all registered endpoints with their methods and rules.
-    Safe for production debugging (remove or protect in real prod).
-    """
-    from flask import current_app
-
-    endpoints = []
-    for rule in current_app.url_map.iter_rules():
-        endpoints.append({
-            'endpoint': rule.endpoint,
-            'methods': sorted(rule.methods),  # GET, POST, etc. (sorted for consistency)
-            'rule': str(rule),
-        })
-
-    # Sort by endpoint name for readability
-    endpoints.sort(key=lambda x: x['endpoint'])
-
-    # Render as simple HTML for easy viewing
-    html = "<h1>Registered Endpoints</h1><ul>"
-    for ep in endpoints:
-        html += f"<li><strong>{ep['endpoint']}</strong>: {', '.join(ep['methods'])} → {ep['rule']}</li>"
-    html += "</ul>"
-    return html, 200
 
 @bp.route("/settings", methods=["GET", "POST"])
 @bp.route("/settings/<style_name>", methods=["GET", "POST"])
@@ -99,6 +76,7 @@ def settings(style_name = None):
         form = form,
         style = style
     )
+
 
 @bp.route('/users')
 @admin_required
@@ -133,10 +111,93 @@ def set_user_role(id, direction):
     return redirect(url_for('admin.users'))
 
 @bp.route('/products')
+@admin_required
 def products():
+    products = get_previews()
+    categories = models.Category.get()
     return render_template(
-        "core/products.html"
+        "core/products.html",
+        products = products,
+        categories = categories
     )
+
+@bp.route('/products/<product_id>', methods=["GET", "POST"])
+@admin_required
+def product(product_id):
+    product = models.Product.get(id = product_id)
+    if not product:
+        abort(404)
+    product = product[0]
+    product_form = forms.create_product_form(product)
+    images = models.Image.get(product_id = product_id)
+    if product_form.validate_on_submit():
+        update = False
+        for field in product_form:
+            if field.name in ["submit", "csrf_token"]:
+                continue
+            if getattr(product, field.name) != field.data:
+                setattr(product,field.name, field.data)
+                update = True
+        if update:
+            product.update()
+        return redirect(url_for('admin.product', product_id=product_id))
+
+    return render_template(
+        'core/product.html',
+        product = product_form,
+        images = images,
+    )
+
+@bp.route('/images')
+@admin_required
+def images():
+    images = models.Image.get()
+    return render_template(
+        'core/images.html',
+        images=images
+    )
+
+@bp.route('/images/<image_id>', methods=["GET", "POST"])
+@admin_required
+def image(image_id):
+    image = models.Image.get(id=image_id)
+    if not image:
+        abort(404)
+    image = image[0]
+    form = forms.create_image_form(image)
+    if form.validate_on_submit():
+        update = False
+        for field in form:
+            if field.name in ["submit", "csrf_token"]:
+                continue
+            if getattr(product, field.name) != field.data:
+                setattr(product,field.name, field.data)
+                update = True
+        if update:
+            image.update()
+        return redirect(url_for('admin.image', image_id=image.id))
+
+    return render_template(
+        'core/image.html',
+        image = image,
+        form = form
+    )
+
+@bp.route('/images/remove/<image_id>', methods=["DELETE"])
+@admin_required
+def remove_image(image_id):
+    image = models.Image.get(id=image_id)
+    if not image:
+        abort(404)
+    image = image[0]
+    status = image.delete()
+    if "success" in status:
+        flash(status["success"])
+    elif "failed" in status:
+        flash(status["failed"], "warning")
+    else:
+        flash("Something went wrong", "error")
+    return redirect(url_for('admin.images'))
 
 @bp.route("/suppliers", methods=["GET", "POST"])
 @admin_required

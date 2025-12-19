@@ -6,24 +6,20 @@ from flask import (
     Response,
 )
 from . import bp
-from app.models import models
+from app.models import models, get_previews
+
 from app.utils import site_config
 import json, os, random
-
+from pathlib import Path
+import inspect
 
 @bp.route("/index")
 @bp.route("/")
 def index():
-    data = models.Category.get()
-    categories = [{entry.name: entry.id} for entry in data]
-    data = models.Product.get()
-    random.shuffle(data)
-    products = [entry.data() for entry in data]
-
+    products = get_previews("ACTIVE")
     return render_template(
         "main/index.html",
         site = site_config.get_config("site_config"),
-        categories = categories,
         products = products,
     )
 
@@ -63,4 +59,7 @@ def product(id):
         product = product,
     )
 
-
+@bp.route('/image/<filename>')
+def serve_image(filename):
+    image_dir =Path(current_app.instance_path) / 'images'
+    return send_from_directory(image_dir, filename)

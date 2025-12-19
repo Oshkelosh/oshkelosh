@@ -2,58 +2,47 @@
 {% block content %}
 <h2>Administrators</h2>
 {% if admins %}
-<table>
-	<tr>
-		<th colspan="2">Name</th><th>Email</th><th>Phone nr</th>
-		{% if admins|count > 1 %}<th>Remove as Admin</th>{% endif %}
-	</tr>
 {% for admin in admins %}
-	<tr>
-		<td>{{ admin.name }}</td>
-		<td>{{ admin.surname }}</td>
-		<td>{{ admin.email }}</td>
-		<td>{{ admin.phone }}</td>
-		{% if admins|count > 1 %}
-		<td>
-			<form method="POST"
-				action="{{ url_for('admin.set_user_role', id=admin.id, direction='REMOVE') }}"
-				onsubmit="return confirm('Demote {{ admin.name }} {{ admin.surname }} from Admin?');">
-				<button type="submit" class="btn btn--danger btn--sm">
-					Remove
-				</button>
-			</form>
-		</td>
-		{% endif %}
-	</tr>
+<div class="list-container">
+	<span class="list-item">{{ admin.name }}</span>
+	<span class="list-item">{{ admin.surname }}</span>
+	<span class="list-item">{{ admin.email }}</span>
+	<span class="list-item">{{ admin.phone }}</span>
+	{% if admins|count > 1 %}
+	<span class="list-item" style="margin-left:auto;">
+		<form method="POST"
+			action="{{ url_for('admin.set_user_role', id=admin.id, direction='REMOVE') }}"
+			onsubmit="return confirm('Demote {{ admin.name }} {{ admin.surname }} from Admin?');">
+			<button type="submit" class="btn">
+				Remove
+			</button>
+		</form>
+	</span>
+	{% endif %}
+</div>
 {% endfor %}
-</table>
 {% else %}
 <p>No Administrators Registered, which is weird. How can you see this message?</p>
 {% endif %}
 <h2>Clients</h2>
 {% if users %}
-<table>
-	<tr>
-		<th colspan="2">Name</th><th>Email</th><th>Phone nr</th><th>Add as Admin</th>
-	</tr>
 {% for user in users %}
-	<tr>
-		<td>{{ user.name }}</td>
-		<td>{{ user.surname }}</td>
-		<td>{{ user.email }}</td>
-		<td>{{ user.phone }}</td>
-		<td>
-			<form method="POST"
-				action="{{ url_for('admin.set_user_role', id=user.id, direction='ADD') }}"
-				onsubmit="return confirm('Promote {{ user.name }} {{ user.surname }} to Admin?');">
-				<button type="submit" class="btn btn--danger btn--sm">
-					Add as Admin
-				</button>
-			</form>
-		</td>
-	</tr>
+<div class="list-container">
+	<span class="list-item">{{ user.name }}</span>
+	<span class="list-item">{{ user.surname }}</span>
+	<span class="list-item">{{ user.email }}</span>
+	<span class="list-item">{{ user.phone }}</span>
+	<span class="list-item" style="margin-left:auto;">
+		<form method="POST"
+			action="{{ url_for('admin.set_user_role', id=user.id, direction='ADD') }}"
+			onsubmit="return confirm('Promote {{ user.name }} {{ user.surname }} to Admin?');">
+			<button type="submit" class="btn">
+				Add as Admin
+			</button>
+		</form>
+	</span>
+</div>
 {% endfor %}
-</table>
 {% else %}
 <p>No Clients signed up yet, which is weird. How have you been promoting your shop??</p>
 {% endif %}

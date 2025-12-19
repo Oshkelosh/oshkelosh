@@ -1,13 +1,15 @@
 from . import functions
+from . import limit_session
 import json
+import logging
+
+log = logging.getLogger(__name__)
+session = limit_session.session
 
 def sync_product(printful_data):
     try:
-        print("Syncing Printful products . . .")
-        print("Checking token . . .")
+        log.info("Syncing Printful products . . .")
         token = printful_data["token"]
-        functions.check_token(token)
-        print("Syncing . . .")
         product_list = functions.get_products(token)
         product_data = []
         for product in product_list:
@@ -31,19 +33,16 @@ def sync_product(printful_data):
                     "base_product_id": base["product_id"]
                 }
                 for file in variant["files"]:
-                    if file["status"] != "ok" or file["url"] is None:
-                        continue
-                    data["images"].append({
-                        "image_id": file["id"],
-                        "supplier_url":file["url"],
-                    })
+                    if file["status"] == "ok" and file["type"] == "preview":
+                        data["images"].append({
+                            "image_id": file["id"],
+                            "supplier_url":file["preview_url"],
+                        })
                 base["variants"].append(data)
             product_data.append(base)
         return product_data
     except Exception:
         raise
-
-
 
 
 default_list = [

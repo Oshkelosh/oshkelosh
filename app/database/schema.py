@@ -126,8 +126,8 @@ schema = [
             "product_id": "INTEGER NOT NULL",
             "title": "TEXT DEFAULT 'Product Image'",
             "alt_text": "TEXT DEFAULT 'An amazing new product!'",
-            "url": "TEXT",
-            "supplier_url": "TEXT NOT NULL",
+            "filename": "TEXT",
+            "supplier_url": "TEXT",
             "position": "INTEGER DEFAULT 0",
             "FOREIGN KEY": [
                 {

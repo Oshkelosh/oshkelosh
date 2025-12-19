@@ -1,0 +1,53 @@
+@layer components {
+
+	.content {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		margin: 1em auto;
+		gap: 1em;
+	}
+
+	.card {
+		display: flex;
+		position: relative;
+		background-size: cover;
+		background-position: center;
+		background-repeat: no-repeat;
+		width: 30ch;
+		height: 25em;
+		background: oklch(100%, 0, 0);
+		border:1px solid rgba(0,0,0,0.1);
+		jsutify-content: space-between;
+		overflow: hidden;
+		
+	}
+	.card p, .card h3 { 
+		color: rgb(11, 11, 11)
+		text-shadow: 1px 1px 2px rgba(0, 0, 0, 1); 
+	}
+	.bar {
+		background: rgba(255,255,255,0.5);
+		box-shadow: 0 0 100px 110px rgba(255,255,255,0.5);
+		margin-top: auto;
+		text-align: center;
+		opacity: 0;
+		visibility: hidden;
+		transition: opacity 0.3s ease, visibility 0.3s ease;
+	}
+	.card:hover {
+		border: 1px solid rgba(0,0,0,0.2);
+		box-shadow: 3px 3px 4px rgba(0,0,0,0.1);
+	}
+	.card:hover .bar {
+		opacity: 1;
+		visibility: visible;
+	}
+
+	.card-link {
+		display: block;
+		width: fit-content;
+		color:inherit;
+		text-decoration: none;
+	}
+}

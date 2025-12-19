@@ -1,16 +1,18 @@
 {% extends 'base.html' %}
 
 {% block head %}
-<link rel="stylesheet" href="{{ url_for('theme_static.serve', filename='style.css') }}">
+	<link rel="stylesheet" href="{{ url_for('theme_static.serve', filename='components.css') }}">
 {% endblock %}
 
 {% block content %}
 
-	<div class="header">
+	<div class="title-bar">
+		<h2>Products</h2>
 	</div>
-	<h1>Args view</h1>
-	<h2>Site Dict</h2>
-	{% for key,value in site.items() %}
-	<p>{{ key }} : {{ value }}</p>
-	{% endfor %}
+	<div class="content">
+		{% from 'components.html' import card %}
+		{% for product in products %}
+		{{ card(site, product) }}
+		{% endfor %}
+	</div>
 {% endblock %}

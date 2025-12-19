@@ -1,7 +1,17 @@
 {% extends 'core/base.html' %}
 {% block content %}
-<h2> Main</h2>
-<p>Product details goes here</P>
+<h2>Products</h2>
+{% for product in products %}
+<a href="{{ url_for('admin.product', product_id=product.id) }}" class="list-container">
+	<span class="list-item">
+		<img src="{{ url_for('main.serve_image', filename=product.primary_image.filename) }}" style="width: 80px; height:80px;">
+	</span>
+	<span class="list-item">
+		<h3>{{ product.name }}</h3>
+		<p>{{ product.description }}</p>
+	</span>
+</a>
+{% endfor %}
 <br>
 {% endblock %}
 

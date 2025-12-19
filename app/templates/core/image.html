@@ -1,0 +1,37 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<h2>Image Details</h2>
+<div>
+	<img src="{{ url_for('main.serve_image', filename=image.filename) }}" style="margin:auto;">
+</div>
+<form method="POST">
+{{ form.hidden_tag() }}
+	{% for field in form if field.name not in ['csrf_token', 'submit']  %}
+	<div class="list-container">
+		<div class="list-item">
+			<h3>{{ field.label }}</h3>
+			<p>{{ field.description }}</p>
+		</div>
+		<div class="list-item" style="margin-left:auto;">
+
+			{{ field() }}
+		</div>
+		{% if field.errors %}{{ field.errors[0] }}{% endif %}
+	</div>
+	{% endfor %}
+	<div>
+		{{ form.submit(class_="btn") }}
+	</div>
+</form>
+<br/>
+<form method="DELETE"
+	action="{{ url_for('admin.remove_image', image_id=image.id) }}"
+	onsubmit="return confirm('Delete {{ image.filename }} from Database Permanently?');">
+	<button type="submit" class="btn">
+		Delete
+	</button>
+</form>
+<br/>
+{% endblock %}
+

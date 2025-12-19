@@ -1,45 +1,49 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    {% block head %}
-    {% endblock %}
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link rel="stylesheet" href="{{ url_for('theme_static.serve', filename='_reset.css') }}">
+	<link rel="stylesheet" href="{{ url_for('theme_static.serve', filename='base.css') }}">
+	<link rel="stylesheet" href="{{ url_for('theme_static.serve', filename='colors.css') }}">
+	<link rel="stylesheet" href="{{ url_for('theme_static.serve', filename='layout.css') }}">
+	{% block head %}
+	{% endblock %}
 </head>
 <body>
-		<br>
-		<div class="header" style="justify-content: flex-end;">
-			<a href="{{ url_for('user.cart') }}">Cart</a>
-			<a href="{{ url_for('user.checkout') }}">Check Out</a>
-			{% if current_user.is_authenticated %}
-			<a href="{{ url_for('user.profile') }}">{{ current_user.name }}</a>
-			<a href="{{ url_for('user.logout') }}">Log Out</a>
-				{% if current_user.role == 'ADMIN' %}
-				<a href="{{ url_for('admin.index') }}">Admin Panel</a>
-				{% endif %}
-			{% else %}
-			<a href="{{ url_for('user.login') }}">Log In</a>
-			{% endif %}
+	<br>
+	<div class="header" style="justify-content: right;">
+		<a href="{{ url_for('user.cart') }}">Cart</a>
+		<a href="{{ url_for('user.checkout') }}">Check Out</a>
+		{% if current_user.is_authenticated %}
+		<a href="{{ url_for('user.profile') }}">{{ current_user.name }}</a>
+		<a href="{{ url_for('user.logout') }}">Log Out</a>
+		{% if current_user.role == 'ADMIN' %}
+		<a href="{{ url_for('admin.index') }}">Admin Panel</a>
+		{% endif %}
+		{% else %}
+		<a href="{{ url_for('user.login') }}">Log In</a>
+		{% endif %}
+	</div>
+
+	<h1 class="title"><a href="{{ url_for('main.index') }}">{{ site.site_name }}</a></h1>
+	<div class="main-container">
+		<div class="side-bar"></div>
+		<div class="main">
+		{% block content %}
+		{% endblock %}
 		</div>
-	
-		<h1 class="title"><a href="{{ url_for('main.index') }}">{{ site.site_name }}</a></h1>
-		<div class="main_container">
-			<div class="side"></div>
-			<div class="main">
-			{% block content %}
-			{% endblock %}
-			</div>
-			<div class="side"></div>
+		<div class="side-bar"></div>
+	</div>
+	<div class="footer">
+		<div>
+			<a href='{{ url_for('main.about') }}'>About</a>
+			<a href=''>Item List</a>
+			<a href=''>Contact Us</a>
 		</div>
-		<div class="footer">
-			<div>
-				<a href='{{ url_for('main.about') }}'>About</a>
-				<a href=''>Item List</a>
-				<a href=''>Contact Us</a>
-			</div>
-			<div>
-				<p>{{ site.site_name }} is powered by <a href=''>Oshkelosh</a></p>
-			</div>
+		<div>
+			<p>{{ site.site_name }} is powered by <a href=''>Oshkelosh</a></p>
 		</div>
+	</div>
 </body>
 </html>

@@ -1,0 +1,37 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<h2>Product Details</h2>
+<form method="POST">
+{{ product.hidden_tag() }}
+	{% for field in product if field.name not in ['csrf_token', 'submit']  %}
+	<div class="list-container">
+		<div class="list-item">
+			<h3>{{ field.label }}</h3>
+			<p>{{ field.description }}</p>
+		</div>
+		<div class="list-item" style="margin-left:auto;">
+
+			{{ field() }}
+		</div>
+		{% if field.errors %}{{ field.errors[0] }}{% endif %}
+	</div>
+	{% endfor %}
+	<div>
+		{{ product.submit(class_="btn") }}
+	</div>
+</form>
+{% for image in images %}
+<div class="list-container">
+	<div class="list-item">
+		<img src="{{ url_for('main.serve_image', filename=image.filename)  }}" style="heigh:200px; width:200px;">
+	</div>
+	<div class="list-item">
+		<h3>{{ image.title }}</h3>
+		<p>{{ image.alt_text }}</p>
+		<a class="btn" href="{{ url_for('admin.image', image_id=image.id) }}">Edit Data</a>
+	</div>
+</div>
+{% endfor %}
+{% endblock %}
+

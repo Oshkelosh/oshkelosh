@@ -1,6 +1,7 @@
 
 from flask_wtf import FlaskForm
-from wtforms import StringField, IntegerField, BooleanField, SubmitField, SelectField, EmailField
+from wtforms import StringField, IntegerField, BooleanField, SubmitField, SelectField, EmailField, FloatField
+from wtforms.validators import DataRequired
 
 from app.models import models
 
@@ -42,3 +43,70 @@ def get_styles():
     return style
 
 
+def create_product_form(product):
+    class ProductForm(FlaskForm):
+        name = StringField(
+            'Name',
+            validators=[DataRequired()],
+            description="Product name",
+            default=product.name
+        )
+
+        description = StringField(
+            'Description',
+            validators=[DataRequired()],
+            description="Product description",
+            default=product.description
+        )
+
+        price = FloatField(
+            'Price',
+            validators=[DataRequired()],
+            description="Product price",
+            default=product.price
+        )
+        
+        supplier = models.get_config(addon_id=product.supplier_id)
+        if getattr(supplier, 'manual', False):
+            stock = StringField(
+                'Stock',
+                validators=[DataRequired()],
+                description="Available stock",
+                default=product.stock,
+            )
+
+        active = BooleanField(
+            'Active',
+            description="Is product active",
+            default=product.active
+        )
+
+        submit = SubmitField('Submit')
+    return ProductForm()
+
+def create_image_form(image):
+    class ImageForm(FlaskForm):
+        title = StringField(
+            'Title',
+            validators=[DataRequired()],
+            description="Image title",
+            default=image.title
+        )
+
+        alt_taxt = StringField(
+            'Alt Text',
+            validators=[DataRequired()],
+            description="Alternative text",
+            default=image.alt_text
+        )
+
+        position = FloatField(
+            'Position',
+            validators=[DataRequired()],
+            description="Order position. Adjust in Product page",
+            default=image.position,
+            render_kw={"readonly":True}
+        )
+        
+        submit = SubmitField('Submit')
+    return ImageForm()

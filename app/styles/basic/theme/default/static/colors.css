@@ -1,0 +1,24 @@
+
+:root {
+	--lch-blue: 54% 0.15 255;
+	--lch-red: 51% 0.2 31;
+	--lch-green: 65% 0.23 142;
+
+	--color-primary: {{ style.primary_color }};
+	--color-secondary: {{ style.secondary_color }};
+	
+
+	--color-mid-grey: oklch(50% 0 0);
+
+	--color-canvas: var(--color-primary);     /* Neutral background */
+	--color-ink: oklch(15% 0 0);        /* Primary text */
+	--color-link: oklch(var(--lch-blue));
+	--color-negative: color-mix(in rgb, oklch(var(--lch-red)) 50%, var(--color-canvas));
+	--color-positive: color-mix(in rgb, oklch(var(--lch-green)) 50%, var(--color-canvas));
+
+	--shadow-color: color-mix(in oklch, var(--color-ink) 15%, transparent);
+	--shadow-sm: 0 1px 3px var(--shadow-color);
+	--shadow-md: 0 4px 12px var(--shadow-color);
+}
+
+

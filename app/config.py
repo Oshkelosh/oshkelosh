@@ -36,6 +36,8 @@ class Config:
     DATABASE_URI = os.getenv(
         "DATABASE_URL", f"sqlite:///{os.path.join(os.getcwd(), 'instance', 'database.db')}"
     )
+    
+    INSTANCE_PATH = BASE_DIR / 'instance'
 
     REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 

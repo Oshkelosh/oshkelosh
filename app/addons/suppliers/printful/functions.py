@@ -1,28 +1,7 @@
-import requests
-from ratelimit import limits, sleep_and_retry
-
+from .limit_session import session
 import json
-
-@sleep_and_retry
-@limits(calls=120, period=60)
-def session(method, url, headers) -> dict:
-    if method == 'GET':
-        response = requests.get(url=url, headers=headers)
-        response.raise_for_status()
-        return response.json()
-    if method == 'POST':
-        response = requests.post(url=url, headers=headers)
-        response.raise_for_status()
-        return response.json()
-    if method == 'PUT':
-        response = requests.put(url=url, headers=headers)
-        response.raise_for_status()
-        return response.json()
-    if method == 'DELTETE':
-        response = requests.delete(url=url, headers=headers)
-        response.raise_for_status()
-        return response.json()
-    raise KeyError("Unknown Method")
+import logging
+log = logging.getLogger(__name__)
 
 def check_token(token):
     if token is None:
@@ -32,11 +11,12 @@ def check_token(token):
         "Authorization": f"Bearer {token}"
     }
     try:
-        result = session("GET", url=url, headers=header)
+        response = session.get(url=url, headers=header)
+        response.raise_for_status()
+        result = response.json()
         scope_result = [entry["scope"] for entry in result["result"]["scopes"]]
-        print(json.dumps(scope_result, indent=4))
     except Exception as e:
-        print(f"Error during check token: {e}")
+        log.error(f"Error during check token: {e}")
 
 
 def get_products(token):
@@ -49,7 +29,9 @@ def get_products(token):
     try:
         while True:
             url = f"https://api.printful.com/store/products?offset={offset}"
-            result = session('GET', url = url , headers = header)
+            response = session.get(url = url, headers = header)
+            response.raise_for_status()
+            result = response.json()
             result_list.extend(result["result"])
             next_offset = result["paging"]["offset"] + len(result["result"])
             if next_offset <= result["paging"]["total"]:
@@ -57,7 +39,7 @@ def get_products(token):
             offset = next_offset
         return result_list
     except Exception as e:
-        print(f"Error during sync products: {e}")
+        log.error(f"Error during sync products: {e}")
     return result_list
 
 def get_product_details(token, product_id):        
@@ -66,8 +48,10 @@ def get_product_details(token, product_id):
     }
     try:
         url = f"https://api.printful.com/store/products/{product_id}"
-        return session('GET', url = url , headers = header)
+        response = session.get(url = url, headers = header)
+        response.raise_for_status()
+        return response.json()
     except Exception as e:
-        print(f"Error during sync product details: {e}")
+        log.error(f"Error during sync product details: {e}")
 
 
