@@ -17,12 +17,15 @@ from functools import wraps
 from app.models import models, get_previews
 
 from app.utils.site_config import invalidate_config_cache
+from app.utils.logging import get_logger
+
 import app.processor as processors
 
 from . import forms
 
 import json
 
+log = get_logger(__name__)
 
 def admin_required(f):
     @wraps(f)
@@ -170,8 +173,8 @@ def image(image_id):
         for field in form:
             if field.name in ["submit", "csrf_token"]:
                 continue
-            if getattr(product, field.name) != field.data:
-                setattr(product,field.name, field.data)
+            if getattr(image, field.name) != field.data:
+                setattr(image,field.name, field.data)
                 update = True
         if update:
             image.update()
@@ -183,7 +186,44 @@ def image(image_id):
         form = form
     )
 
-@bp.route('/images/remove/<image_id>', methods=["DELETE"])
+
+@bp.route('/images/add/<product_id>', methods=["GET", "POST"])
+@admin_required
+def add_iamge(product_id):
+    form = forms.AddImageForm()
+    if form.validate_on_submit():
+        new_image = None
+        try:
+            images = models.Image.get(prodcut_id=product_id)
+            new_position = len(images)+1
+            file = form.image.data
+            data = {
+                "title": form.title.data,
+                "alt_text": form.alt_text.data,
+                "product_id": product_id,
+                "position": new_position
+            }
+            new_image = models.Image.new(**data)
+            filename = f"productimage_{new_image.product_id}_{new_image.id}"
+            new_image.filename = filename
+            new_image.update()
+            processors.save_image(filename, file)
+
+        except Exception as e:
+            log.error(f'An error occured while uploading a new product image: {e}')
+            flash("An unexpected error occured during file upload", "error")
+            if new_image is not None:
+                new_image.delete()
+        return redirect(url_for('admin.product', product_id=product_id))
+    return render_template(
+        'core/add_image.html',
+        form=form
+    )
+
+
+
+
+@bp.route('/images/remove/<image_id>', methods=["POST"])
 @admin_required
 def remove_image(image_id):
     image = models.Image.get(id=image_id)

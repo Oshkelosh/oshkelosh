@@ -1,7 +1,9 @@
 
 from flask_wtf import FlaskForm
+from flask_wtf.file import FileField, FileRequired, FileAllowed, FileSize
+
 from wtforms import StringField, IntegerField, BooleanField, SubmitField, SelectField, EmailField, FloatField
-from wtforms.validators import DataRequired
+from wtforms.validators import DataRequired, Length, Optional
 
 from app.models import models
 
@@ -93,7 +95,7 @@ def create_image_form(image):
             default=image.title
         )
 
-        alt_taxt = StringField(
+        alt_text = StringField(
             'Alt Text',
             validators=[DataRequired()],
             description="Alternative text",
@@ -110,3 +112,21 @@ def create_image_form(image):
         
         submit = SubmitField('Submit')
     return ImageForm()
+
+class AddImageForm(FlaskForm):
+    image = FileField(
+        'Image',
+            validators=[
+                FileRequired(),
+                FileAllowed(ALLOWED_EXTENSIONS, 'Images only (png, jpg, jpeg, gif, webp)!')
+            ]
+    )
+    title = StringField(
+        'Title',
+        validators=[DataRequired(), Length(max=100)]
+    )
+    alt_text = StringField(
+        'Alt Text',
+        validators=[Optional(), Length(max=450)]
+    )
+    submit = SubmitField('Upload Image')

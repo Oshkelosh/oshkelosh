@@ -48,15 +48,16 @@ def category(category_id):
     )
 
 @bp.route('/product/<product_id>')
-def product(id):
-    product = models.Product.get(id=id)
-    product = product[0].data()
-    categories = models.Category.get()
-    categories = [entry.data() for entry in categories]
+def product(product_id):
+    product = models.Product.get(id=product_id)
+    product = product[0]
+    images = models.Image.get(product_id = product.id)
+    images = sorted(images, key=lambda d: d.positon) 
     return render_template(
         "main/product.html",
         site = site_config.get_config("site_config"),
         product = product,
+        images = images
     )
 
 @bp.route('/image/<filename>')

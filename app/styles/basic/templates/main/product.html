@@ -6,5 +6,21 @@
 
 {% block content %}
 	<div class="header">
+		<h2>{{ product.name }}</h2>
+	</div>
+	<div class="image-container">
+		<div class="image-wrapper">
+			<img id="mainImage" class="main-image" src="" alt="Product image">
+			<button class="nav-arrow prev" aria-label="Previous image">‹</button>
+			<button class="nav-arrow next" aria-label="Next image">›</button>
+		</div>
+		<div class="thumbnails" id="tumbnails"></div>
+	</div>
+	<script>
+	
+	</script>
+	<div>
+		<p>{{ product.description }}</p>
+		<p>{{ product.price }} {{ site.currency }}</p>
 	</div>
 {% endblock %}

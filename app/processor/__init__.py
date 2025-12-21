@@ -1,5 +1,6 @@
 from app.models import models
-from . import processors
+from .processors import check_products, save_image
+
 from app.utils.logging import get_logger
 
 log = get_logger(__file__)
@@ -35,7 +36,7 @@ def sync_products():
             product_list = []
             product_list.extend(base_products)
             product_list.extend(variant_products)
-            processors.check_products(product_list, supplier.id, session)
+            check_products(product_list, supplier.id, session)
 
         except ImportError as e:
             log.warning(f"Failed importing supplier addon {supplier.name}: {e}")

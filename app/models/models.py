@@ -290,11 +290,13 @@ class Image(BaseClass):
     def delete(self):
         filename = self.filename
         file_path = Path(current_app.instance_path) / "images" / filename
+        product_id = self.product_id
         with conn_db() as (connection, cursor):
             query = "DELETE FROM image_table WHERE id = ?"
             data = [getattr(self, 'id')]
             cursor.execute(query, data)
             connection.commit()
+        reorder_images(product_id)
         try:
             if file_path.is_file():
                 file_path.unlink()
@@ -310,6 +312,15 @@ class Image(BaseClass):
         except OSError:
             return {"failed":"Error deleting file"}
 
+def reorder_images(product_id):
+    product_images = Image.get(product_id = product_id)
+    if not product_images:
+        return
+    product_images = sorted(product_images, key=lambda d: d.position)
+    for i, image in enumerate(product_images):
+        if image.position != i+1:
+            image.position = i+1
+            image.update()
 
 class Order(BaseClass):
     table_name = "order_table"
@@ -419,6 +430,16 @@ class Addon(BaseClass):
                     Path('app') / 'addons' / 'suppliers' / kwargs['name'].lower()
                 )
                 module_name = f"app.addons.suppliers.{kwargs['name'].lower()}"
+            elif kwargs['type'] == "MESSAGING":
+                addon_path = (
+                    Path('app') / 'addons' / 'messaging' / kwargs['name'].lower()
+                )
+                module_name = f"app.addons.messaging.{kwargs['name'].lower()}"
+            elif kwargs['type'] == "PAYMENT":
+                addon_path = (
+                    Path('app') / 'addons' / 'payments' / kwargs['name'].lower()
+                )
+                module_name = f"app.addons.payments.{kwargs['name'].lower()}"
 
             spec = importlib.util.spec_from_file_location(
                 module_name, addon_path / "__init__.py"
