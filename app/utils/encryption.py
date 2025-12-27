@@ -5,14 +5,14 @@ from .logging import get_logger
 
 log = get_logger(__file__)
 
-def get_key():
+def get_key() -> bytes:
     load_dotenv()
     key = os.getenv('ENCRYPTION_KEY')
     if not key:
         raise ValueError("No Encryption Key Specified")
     return key.encode('utf-8')
 
-def encrypt_data(plain_text):
+def encrypt_data(plain_text: str) -> str:
     if not plain_text:
         raise ValueError("Cannot encrypt nothing")
     try:
@@ -22,7 +22,7 @@ def encrypt_data(plain_text):
         log.error(f"Encryption Failed: {e}")
         raise RuntimeError("Encryption Error") from e
 
-def decrypt_data(cipher_text):
+def decrypt_data(cipher_text: str) -> str:
     if not cipher_text:
         raise ValueError("Cannot decrypt nothing")
     try:

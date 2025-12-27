@@ -1,5 +1,6 @@
 flask
 flask-login
+flask-sqlalchemy
 flask-wtf
 email_validator
 retry
@@ -9,6 +10,7 @@ redis
 
 bcrypt
 cryptography
+sqlalchemy
 
 psycopg2-binary
 

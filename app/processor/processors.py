@@ -1,13 +1,15 @@
 from app.models import models
-import json
+from app.database import db
 import pathlib
 import requests
 import mimetypes
 import os
+from typing import Any, Dict, List, Optional
 
 from PIL import Image as PilImage
 
 from flask import current_app
+from werkzeug.datastructures import FileStorage
 
 from app.utils.logging import get_logger
 
@@ -15,9 +17,9 @@ from werkzeug.utils import secure_filename
 
 log = get_logger(__file__)
 
-session = None
+session: Any = None
 
-def check_products(product_data, supplier_id, addon_session = None):
+def check_products(product_data: List[Dict[str, Any]], supplier_id: int, addon_session: Any = None) -> None:
     if not product_data:
         return
 
@@ -32,37 +34,42 @@ def check_products(product_data, supplier_id, addon_session = None):
             images = []
             if "images" in product:
                 images = product.pop("images")
-            db_product = models.Product.get(product_id = product["product_id"])
+            db_product = models.Product.query.filter_by(product_id=product["product_id"]).first()
             if not db_product:
                 if not product["is_base"]:
                     base_product_id = product.pop('base_product_id')
-                    base_product = models.Product.get(product_id=base_product_id)
-                    product["variant_of_id"] = base_product[0].id
-                db_product = models.Product.new(**product)
-            else:
-                db_product = db_product[0]
+                    base_product = models.Product.query.filter_by(product_id=base_product_id).first()
+                    if not base_product:
+                        log.error(f"Base product with product_id {base_product_id} not found")
+                        continue
+                    product["variant_of_id"] = base_product.id
+                db_product = models.Product(**product)
+                db.session.add(db_product)
+                db.session.commit()
             
             if not db_product.active:
                 db_product.active = True
-                db_product.update()
+                db.session.commit()
 
             if images:
                 check_images(images, db_product.id)
 
-        db_products = models.Product.get(supplier_id=supplier_id)
+        db_products = models.Product.query.filter_by(supplier_id=supplier_id).all()
+        product_ids_in_data = [p["product_id"] for p in product_data]
         for product in db_products:
-            if product.product_id not in [product_info["product_id"] for product_info in product_data]:
+            if product.product_id not in product_ids_in_data:
                 product.active = False
-                product.update()
+        db.session.commit()
     except Exception as e:
         log.error(f"Exception during check_products: {e}")
+        db.session.rollback()
         raise
 
-def check_images(image_list, product_id):
+def check_images(image_list: List[Dict[str, Any]], product_id: int) -> None:
     if not image_list:
         return
     try:
-        product_image_list = models.Image.get(product_id = product_id)
+        product_image_list = models.Image.query.filter_by(product_id=product_id).all()
         for image in image_list:
             exists = False
             for product_image in product_image_list:
@@ -70,19 +77,22 @@ def check_images(image_list, product_id):
                     exists = True
                     break
             if not exists:
-                db_image = models.Image.new(**image, product_id=product_id)
+                db_image = models.Image(product_id=product_id, **image)
+                db.session.add(db_image)
+                db.session.flush()  # Get the ID
                 base_name = f"productimage_{db_image.product_id}_{db_image.id}"
                 filename = download_image(db_image.supplier_url, base_name)
                 db_image.filename = filename
-                db_image.position = len(product_image_list)+1
-                db_image.update()
+                db_image.position = len(product_image_list) + 1
+                db.session.commit()
 
     except Exception as e:
         log.error(f"Exception during check_images: {e}")
+        db.session.rollback()
         raise
 
 
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+# ALLOWED_EXTENSIONS will be accessed via current_app.config.get() when needed
 
 def download_image(url: str, base_filename: str) -> str:
     save_dir = pathlib.Path(current_app.instance_path) / "images"
@@ -102,8 +112,9 @@ def download_image(url: str, base_filename: str) -> str:
         if not extension:
             raise ValueError(f"Could not determine extension for Content-Type: {content_type}")
         ext = extension.lstrip('.').lower()
-        if ext not in ALLOWED_EXTENSIONS:
-            raise ValueError(f"Invalid file extension: {ext}. Allowed: {', '.join(ALLOWED_EXTENSIONS)}")
+        allowed_extensions = current_app.config.get("IMAGE_EXTENSIONS", {'png', 'jpg', 'jpeg', 'gif', 'webp'})
+        if ext not in allowed_extensions:
+            raise ValueError(f"Invalid file extension: {ext}. Allowed: {', '.join(allowed_extensions)}")
 
 
         filename = f"{secured_base}{extension}"
@@ -144,14 +155,15 @@ def download_image(url: str, base_filename: str) -> str:
     
     return filename
 
-def save_image(filename, file):
+def save_image(filename: str, file: FileStorage) -> None:
     save_path = pathlib.Path(current_app.instance_path) / "images"
     original_filename = secure_filename(file.filename)
     ext = os.path.splitext(original_filename)[1].lower().lstrip('.')
     
     # Validate extension
-    if not ext or ext not in ALLOWED_EXTENSIONS:
-        raise ValueError(f"Invalid file extension: {ext}. Allowed: {', '.join(ALLOWED_EXTENSIONS)}")
+    allowed_extensions = current_app.config.get("IMAGE_EXTENSIONS", {'png', 'jpg', 'jpeg', 'gif', 'webp'})
+    if not ext or ext not in allowed_extensions:
+        raise ValueError(f"Invalid file extension: {ext}. Allowed: {', '.join(allowed_extensions)}")
     
     # Build full filename and path
     full_filename = f"{filename}.{ext}"

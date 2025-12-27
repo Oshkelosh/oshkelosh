@@ -6,14 +6,11 @@ from app.utils.logging import get_logger
 log = get_logger(__file__)
 
 import importlib
-import json
 
-
-
-def sync_products():
-    addon_list = models.Addon.get(type='SUPPLIER')
+def sync_products() -> None:
+    addon_list = models.Addon.query.filter_by(type='SUPPLIER').all()
     for supplier in addon_list:
-        config = models.Config(addon_id=supplier.id)
+        config = models.get_config(addon_id=supplier.id)
         data = config.data()
 
         try:

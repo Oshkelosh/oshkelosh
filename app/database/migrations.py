@@ -90,7 +90,7 @@ def _get_row_count(cur: Any, table_name: str) -> int:
     row = cur.fetchone()
     return list(row.values())[0]
 
-def _recreate_table_for_sqlite(conn: Any, cur: Any, table_name: str, cols_def: Dict, backend: str):
+def _recreate_table_for_sqlite(conn: Any, cur: Any, table_name: str, cols_def: Dict[str, Any], backend: str) -> None:
     """Safely recreate SQLite table with data copy if changes needed."""
     cur.execute(f"SELECT * FROM {table_name}")
     data = cur.fetchall()
@@ -110,7 +110,7 @@ def _recreate_table_for_sqlite(conn: Any, cur: Any, table_name: str, cols_def: D
     cur.execute(f"ALTER TABLE {temp_name} RENAME TO {table_name}")
     log.info(f"Recreated {table_name} with changes")
 
-def _create_table(cur: Any, table_name: str, cols_def: Dict, backend: str):
+def _create_table(cur: Any, table_name: str, cols_def: Dict[str, Any], backend: str) -> None:
     parts = []
     for col_name, col_type in cols_def.items():
         if col_name.upper() in ("FOREIGN KEY", "UNIQUE"):
@@ -133,7 +133,7 @@ def _create_table(cur: Any, table_name: str, cols_def: Dict, backend: str):
             parts.append(f"FOREIGN KEY ({fk['key']}) REFERENCES {fk['parent_table']}({fk['parent_key']}) {instr}")
     cur.execute(f"CREATE TABLE {table_name} ({', '.join(parts)})")
 
-def setupDB(schema: List[Dict], db: Any) -> None:
+def setupDB(schema: List[Dict[str, Any]], db: Any) -> None:
     """
     Synchronize DB schema safely:
     - Create missing tables with all columns/constraints.

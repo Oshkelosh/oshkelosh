@@ -1,8 +1,5 @@
 from flask import (
-    current_app,
     render_template,
-    send_from_directory,
-    render_template_string,
     Response,
     request,
     redirect,
@@ -17,25 +14,40 @@ from flask_login import login_user, logout_user, login_required, current_user
 from . import bp
 from . import forms
 from app.models import models
+from app.database import db
 from app.utils import site_config 
 
-import json, os, random
 import bcrypt
+from sqlalchemy.exc import IntegrityError
+from typing import Any, Dict, List
 
 
 
 
 @bp.route("/login", methods=["GET","POST"])
-def login():
+def login() -> str | Response:
     form = forms.loginForm()
     if form.validate_on_submit():
-        users = models.User.get(email=form.email.data)
-        user = users[0] if users else None
+        user = models.User.query.filter_by(email=form.email.data).first()
         if user and user.check_password(form.password.data):
             login_user(user)
             if 'cart' in session:
-                user.cart.extend(session['cart'])
-                user.update()
+                # Convert session cart items to Cart objects
+                for item in session['cart']:
+                    cart_item = models.Cart.query.filter_by(
+                        user_id=user.id,
+                        product_id=item['product_id']
+                    ).first()
+                    if cart_item:
+                        cart_item.quantity += item.get('amount', 1)
+                    else:
+                        cart_item = models.Cart(
+                            user_id=user.id,
+                            product_id=item['product_id'],
+                            quantity=item.get('amount', 1)
+                        )
+                        db.session.add(cart_item)
+                db.session.commit()
                 session.pop('cart', None)
             return redirect(url_for('main.index'))
         flash('Invalid login attempt')
@@ -47,7 +59,7 @@ def login():
 
 
 @bp.route("/logout")
-def logout():
+def logout() -> str:
     logout_user()
     return render_template(
         "user/logout.html",
@@ -55,7 +67,7 @@ def logout():
     )
 
 @bp.route("/signup", methods=["GET", "POST"])
-def signup():
+def signup() -> str | Response:
     form = forms.signupForm()
     if form.validate_on_submit():
         password = str(form.password.data)
@@ -84,12 +96,11 @@ def signup():
             "postal_code": form.shipping_postal_code.data,
             "country": form.shipping_country.data,
         }
-        from app import db
         try:
-            user = models.User.new(**user_data)
-            if not user:
-                flash("Something went wrong, could not register the user")
-                return redirect(url_for("main.index"))
+            user = models.User(**user_data)
+            db.session.add(user)
+            db.session.flush()  # Get the user ID
+            
             user.add_address(**billing_address)
             user.add_address(**shipping_address)
             
@@ -97,8 +108,10 @@ def signup():
             flash("Successfully registered!")
             return redirect(url_for("main.index"))
 
-        except db.IntegrityError as e:
-            if db.is_duplicate(e, 'email'):
+        except IntegrityError as e:
+            db.session.rollback()
+            error_msg = str(e.orig).lower()
+            if 'unique' in error_msg or 'duplicate' in error_msg or 'email' in error_msg:
                 form.email.errors.append("This email is already registered.")
             else:
                 flash("Something went wrong during client registration")
@@ -113,9 +126,9 @@ def signup():
 
 @bp.route("/profile")
 @login_required
-def profile():
-    addresses = models.Address.get(user_id=current_user.id)
-    orders = models.Order.get(user_id = current_user.id)
+def profile() -> str:
+    addresses = models.Address.query.filter_by(user_id=current_user.id).all()
+    orders = models.Order.query.filter_by(user_id=current_user.id).all()
     return render_template(
         "user/profile.html",
         site = site_config.get_config("site_config"),
@@ -124,27 +137,25 @@ def profile():
     )
 
 @bp.route("/cart")
-def cart():
+def cart() -> str:
     cart_products = []
     if current_user.is_authenticated:
-        for entry in current_user.cart:
-            products = models.Product.get(id=entry["product_id"])
-            product = products[0] if products else None
+        for cart_item in current_user.cart_items:
+            product = cart_item.product
             if product:
                 details = {
                     "product": product,
-                    "amount": entry["amount"]
+                    "amount": cart_item.quantity
                 }
                 cart_products.append(details)
     else:
         if 'cart' in session:
             for entry in session['cart']:
-                products = models.Product.get(id=entry['product_id'])
-                product = products[0] if products else None
+                product = models.Product.query.get(entry['product_id'])
                 if product:
                     details={
                         "product": product,
-                        "amount": entry["amount"]
+                        "amount": entry.get("amount", 1)
                     }
                     cart_products.append(details)
     return render_template(
@@ -155,26 +166,38 @@ def cart():
 
 @bp.route("/checkout")
 @login_required
-def checkout():
+def checkout() -> str:
     return render_template(
         "user/checkout.html",
         site = site_config.get_config("site_config"),
     )
 
 @bp.route('/addcart', methods=['POST'])
-def add_to_cart():
-    data = request.get_json()  # Or request.form for form data
+def add_to_cart() -> tuple[Response, int]:
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Invalid request'}), 400
     product_id = data.get('product_id')
     amount = data.get('amount', 1)
     cart_size = 0
     
     if current_user.is_authenticated:
-        current_user.cart.append({
-            "product_id": product_id,
-            "amount": amount
-        })
-        cart_size = len(current_user.cart)
-        current_user.update()
+        cart_item = models.Cart.query.filter_by(
+            user_id=current_user.id,
+            product_id=product_id
+        ).first()
+        
+        if cart_item:
+            cart_item.quantity += amount
+        else:
+            cart_item = models.Cart(
+                user_id=current_user.id,
+                product_id=product_id,
+                quantity=amount
+            )
+            db.session.add(cart_item)
+        db.session.commit()
+        cart_size = current_user.cart_items.count()
     else:
         if 'cart' not in session:
             session['cart'] = []

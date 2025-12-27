@@ -36,8 +36,12 @@ class Config:
     DATABASE_URI = os.getenv(
         "DATABASE_URL", f"sqlite:///{os.path.join(os.getcwd(), 'instance', 'database.db')}"
     )
+    SQLALCHEMY_DATABASE_URI = DATABASE_URI
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     INSTANCE_PATH = BASE_DIR / 'instance'
+
+    IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
     REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 

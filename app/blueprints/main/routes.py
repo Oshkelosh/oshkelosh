@@ -2,20 +2,18 @@ from flask import (
     current_app,
     render_template,
     send_from_directory,
-    render_template_string,
     Response,
 )
 from . import bp
 from app.models import models, get_previews
 
 from app.utils import site_config
-import json, os, random
+import random
 from pathlib import Path
-import inspect
 
 @bp.route("/index")
 @bp.route("/")
-def index():
+def index() -> str:
     products = get_previews("ACTIVE")
     return render_template(
         "main/index.html",
@@ -25,34 +23,36 @@ def index():
 
 
 @bp.route("/about")
-def about():
+def about() -> str:
     return render_template(
         "main/about.html",
         site = site_config.get_config("site_config")
     )
 
 @bp.route("/category/<category_id>")
-def category(category_id):
-    category = models.Category.get(category_id=category_id)
-    category = category[0].data()
-    products = category.products()
-    products = [entry.data() for entry in products]
-    random.shuffel(products)
-    categories = models.Category.get()
-    categories = [entry.data() for entry in categories]
+def category(category_id: str) -> str:
+    category = models.Category.query.get(category_id)
+    if not category:
+        from flask import abort
+        abort(404)
+    products = category.products.all()
+    random.shuffle(products)
+    categories = models.Category.query.all()
     return render_template(
         "main/category.html",
         site = site_config.get_config("site_config"),
         category = category,
         products = products,
+        categories = categories,
     )
 
 @bp.route('/product/<product_id>')
-def product(product_id):
-    product = models.Product.get(id=product_id)
-    product = product[0]
-    images = models.Image.get(product_id = product.id)
-    images = sorted(images, key=lambda d: d.positon) 
+def product(product_id: str) -> str:
+    product = models.Product.query.get(product_id)
+    if not product:
+        from flask import abort
+        abort(404)
+    images = models.Image.query.filter_by(product_id=product.id).order_by(models.Image.position).all()
     return render_template(
         "main/product.html",
         site = site_config.get_config("site_config"),
@@ -61,6 +61,6 @@ def product(product_id):
     )
 
 @bp.route('/image/<filename>')
-def serve_image(filename):
-    image_dir =Path(current_app.instance_path) / 'images'
+def serve_image(filename: str) -> Response:
+    image_dir = Path(current_app.instance_path) / 'images'
     return send_from_directory(image_dir, filename)

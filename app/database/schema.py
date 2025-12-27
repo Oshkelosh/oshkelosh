@@ -1,6 +1,8 @@
-db_path = "./instance/database.db"
+from typing import Any, Dict, List
 
-schema = [
+db_path: str = "./instance/database.db"
+
+schema: List[Dict[str, Any]] = [
     {
         "table_name": "user_table",
         "table_columns": {

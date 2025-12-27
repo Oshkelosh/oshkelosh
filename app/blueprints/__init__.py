@@ -2,15 +2,16 @@
 Central registry for all blueprints.
 Import this from app/__init__.py → one function call registers everything.
 """
-from flask import Flask
+from flask import Flask, Blueprint
 from app.utils.logging import get_logger
+from typing import List, Tuple, Optional
 
 log = get_logger(__name__)
 
-BLUEPRINTS = []
+BLUEPRINTS: List[Tuple[Blueprint, Optional[str]]] = []
 
 
-def register_blueprint(bp, *, url_prefix=None):
+def register_blueprint(bp: Blueprint, *, url_prefix: Optional[str] = None) -> None:
     """Helper used inside each blueprint's __init__.py"""
     BLUEPRINTS.append((bp, url_prefix))
 

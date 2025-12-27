@@ -1,20 +1,21 @@
 from flask import (
-    current_app,
     render_template,
     redirect,
     url_for,
     flash,
-    abort
+    abort,
+    Response
 )
-import jinja2, os
 from . import bp
 from app.utils import site_config
 
 from flask_login import current_user, login_required
 
 from functools import wraps
+from typing import Callable, Any
 
 from app.models import models, get_previews
+from app.database import db
 
 from app.utils.site_config import invalidate_config_cache
 from app.utils.logging import get_logger
@@ -23,14 +24,12 @@ import app.processor as processors
 
 from . import forms
 
-import json
-
 log = get_logger(__name__)
 
-def admin_required(f):
+def admin_required(f: Callable[..., Any]) -> Callable[..., Any]:
     @wraps(f)
     @login_required
-    def decorated_view(*args, **kwargs):
+    def decorated_view(*args: Any, **kwargs: Any) -> Any:
         if current_user.role != 'ADMIN':
             abort(403)
         return f(*args, **kwargs)
@@ -39,13 +38,13 @@ def admin_required(f):
 
 @bp.route("/")
 @admin_required
-def index():
+def index() -> str:
     return render_template("core/index.html")
 
 
 @bp.route("/sync-suppliers", methods=["POST"])
 @admin_required
-def sync_suppliers():
+def sync_suppliers() -> Response:
     processors.sync_products()
     flash('Syncing Products')
     return redirect(url_for('admin.index'))
@@ -54,7 +53,7 @@ def sync_suppliers():
 @bp.route("/settings", methods=["GET", "POST"])
 @bp.route("/settings/<style_name>", methods=["GET", "POST"])
 @admin_required
-def settings(style_name = None):
+def settings(style_name: str | None = None) -> str | Response:
     setup = models.get_config(addon_name = style_name)
     formClass = forms.dynamic_form(setup)
     form = formClass()
@@ -83,8 +82,8 @@ def settings(style_name = None):
 
 @bp.route('/users')
 @admin_required
-def users():
-    data = models.User.get()
+def users() -> str:
+    data = models.User.query.all()
     users = [user for user in data if user.role == 'CLIENT']
     admins = [user for user in data if user.role == 'ADMIN']
     return render_template(
@@ -95,18 +94,17 @@ def users():
 
 @bp.route('/set-user/<int:id>/<direction>', methods=["POST"])
 @admin_required
-def set_user_role(id, direction):
-    users = models.User.get(id=id)
-    if not users:
+def set_user_role(id: int, direction: str) -> Response:
+    user = models.User.query.get(id)
+    if not user:
         abort(404, description="User not found")
-    user = users[0]
     if user.role == 'CLIENT' and direction == 'ADD':
         user.role = 'ADMIN'
-        user.update()
+        db.session.commit()
         flash(f"{user.name} is now an Admin", "success")
     elif user.role == 'ADMIN' and direction == 'REMOVE':
         user.role = 'CLIENT'
-        user.update()
+        db.session.commit()
         flash(f"{user.name} as been removed as Admin", "success")
     else:
         flash("Invalid operation!", "danger")
@@ -115,9 +113,9 @@ def set_user_role(id, direction):
 
 @bp.route('/products')
 @admin_required
-def products():
+def products() -> str:
     products = get_previews()
-    categories = models.Category.get()
+    categories = models.Category.query.all()
     return render_template(
         "core/products.html",
         products = products,
@@ -126,23 +124,22 @@ def products():
 
 @bp.route('/products/<product_id>', methods=["GET", "POST"])
 @admin_required
-def product(product_id):
-    product = models.Product.get(id = product_id)
+def product(product_id: str) -> str | Response:
+    product = models.Product.query.get(product_id)
     if not product:
         abort(404)
-    product = product[0]
     product_form = forms.create_product_form(product)
-    images = models.Image.get(product_id = product_id)
+    images = models.Image.query.filter_by(product_id=product_id).all()
     if product_form.validate_on_submit():
         update = False
         for field in product_form:
             if field.name in ["submit", "csrf_token"]:
                 continue
             if getattr(product, field.name) != field.data:
-                setattr(product,field.name, field.data)
+                setattr(product, field.name, field.data)
                 update = True
         if update:
-            product.update()
+            db.session.commit()
         return redirect(url_for('admin.product', product_id=product_id))
 
     return render_template(
@@ -153,8 +150,8 @@ def product(product_id):
 
 @bp.route('/images')
 @admin_required
-def images():
-    images = models.Image.get()
+def images() -> str:
+    images = models.Image.query.all()
     return render_template(
         'core/images.html',
         images=images
@@ -162,11 +159,10 @@ def images():
 
 @bp.route('/images/<image_id>', methods=["GET", "POST"])
 @admin_required
-def image(image_id):
-    image = models.Image.get(id=image_id)
+def image(image_id: str) -> str | Response:
+    image = models.Image.query.get(image_id)
     if not image:
         abort(404)
-    image = image[0]
     form = forms.create_image_form(image)
     if form.validate_on_submit():
         update = False
@@ -174,10 +170,10 @@ def image(image_id):
             if field.name in ["submit", "csrf_token"]:
                 continue
             if getattr(image, field.name) != field.data:
-                setattr(image,field.name, field.data)
+                setattr(image, field.name, field.data)
                 update = True
         if update:
-            image.update()
+            db.session.commit()
         return redirect(url_for('admin.image', image_id=image.id))
 
     return render_template(
@@ -189,31 +185,37 @@ def image(image_id):
 
 @bp.route('/images/add/<product_id>', methods=["GET", "POST"])
 @admin_required
-def add_iamge(product_id):
+def add_iamge(product_id: str) -> str | Response:
     form = forms.AddImageForm()
     if form.validate_on_submit():
         new_image = None
         try:
-            images = models.Image.get(prodcut_id=product_id)
-            new_position = len(images)+1
+            images = models.Image.query.filter_by(product_id=product_id).all()
+            new_position = len(images) + 1
             file = form.image.data
-            data = {
-                "title": form.title.data,
-                "alt_text": form.alt_text.data,
-                "product_id": product_id,
-                "position": new_position
-            }
-            new_image = models.Image.new(**data)
+            new_image = models.Image(
+                title=form.title.data,
+                alt_text=form.alt_text.data,
+                product_id=product_id,
+                position=new_position
+            )
+            db.session.add(new_image)
+            db.session.flush()  # Get the ID
             filename = f"productimage_{new_image.product_id}_{new_image.id}"
             new_image.filename = filename
-            new_image.update()
+            db.session.commit()
             processors.save_image(filename, file)
 
         except Exception as e:
             log.error(f'An error occured while uploading a new product image: {e}')
+            db.session.rollback()
             flash("An unexpected error occured during file upload", "error")
             if new_image is not None:
-                new_image.delete()
+                try:
+                    db.session.delete(new_image)
+                    db.session.commit()
+                except:
+                    pass
         return redirect(url_for('admin.product', product_id=product_id))
     return render_template(
         'core/add_image.html',
@@ -225,11 +227,10 @@ def add_iamge(product_id):
 
 @bp.route('/images/remove/<image_id>', methods=["POST"])
 @admin_required
-def remove_image(image_id):
-    image = models.Image.get(id=image_id)
+def remove_image(image_id: str) -> Response:
+    image = models.Image.query.get(image_id)
     if not image:
         abort(404)
-    image = image[0]
     status = image.delete()
     if "success" in status:
         flash(status["success"])
@@ -241,11 +242,11 @@ def remove_image(image_id):
 
 @bp.route("/suppliers", methods=["GET", "POST"])
 @admin_required
-def suppliers():
-    addons = models.Addon.get(type="SUPPLIER")
+def suppliers() -> str | Response:
+    addons = models.Addon.query.filter_by(type="SUPPLIER").all()
     supplier_data = []
     for supplier in addons:
-        config = models.Config(addon_id = supplier.id)
+        config = models.get_config(addon_id=supplier.id)
         formClass = forms.dynamic_form(config)
 
         class extendedForm(formClass):
@@ -261,13 +262,13 @@ def suppliers():
                     config[field.short_name] = field.data
                     update = True
             if update:
-                supplier.update()
+                db.session.commit()
                 flash(f"{supplier.name.capitalize()} data updated")
                 return redirect(url_for('admin.suppliers'))
 
         data = {
             "name": supplier.name.capitalize(),
-            "description": supplier.description.capitalize(),
+            "description": supplier.description.capitalize() if supplier.description else "",
             "updated_at": supplier.updated_at or supplier.created_at,
             "version": supplier.version,
             "form": form
@@ -281,11 +282,11 @@ def suppliers():
 
 @bp.route("/payment-processors")
 @admin_required
-def payment_processors():
+def payment_processors() -> str:
     return render_template("core/payment_processors.html")
 
 @bp.route("/addons")
 @admin_required
-def addons():
+def addons() -> str:
     return render_template("core/addons.html")
 

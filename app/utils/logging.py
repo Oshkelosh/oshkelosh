@@ -95,7 +95,7 @@ def get_logger(name: Optional[str] = None) -> logging.Logger:
 
 class UTF8Filter(logging.Filter):
     """Prevent console crashes on broken Unicode (rare but happens with POD webhooks)."""
-    def filter(self, record):
+    def filter(self, record: logging.LogRecord) -> bool:
         if isinstance(record.msg, bytes):
             record.msg = record.msg.decode("utf-8", errors="replace")
         return True

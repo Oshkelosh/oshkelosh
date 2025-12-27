@@ -8,12 +8,11 @@ from dotenv import load_dotenv
 from .config import config_by_name
 from .utils.logging import setup_logging
 from .utils.extensions import login_manager, redis_client
-from .database import DBClient
+from .database import db
 from .styles import get_theme_loader
 from pathlib import Path
 
-load_dotenv()  
-db = DBClient()
+load_dotenv()
 
 def create_app(config_name: Optional[str] = None) -> Flask:
     """
@@ -49,13 +48,18 @@ def create_app(config_name: Optional[str] = None) -> Flask:
     
     redis_client.init_app(app)
     
+    # ------------------------------------------------------------------
+    # SQLAlchemy Database
+    # ------------------------------------------------------------------
+    db.init_app(app)
+    
     with app.app_context():
         # ------------------------------------------------------------------
         # Database & defaults
         # ------------------------------------------------------------------
-        from app.database.schema import schema
-        db.init_app(app)
-        db.checkDB(schema)
+        # Create SQLAlchemy tables from models
+        db.create_all()
+        
         from app.models import models
         from app.database import default_list
         models.set_defaults(default_list = default_list)
@@ -70,28 +74,21 @@ def create_app(config_name: Optional[str] = None) -> Flask:
         # Theme / Template / Static resolution
         # ------------------------------------------------------------------
         @app.before_request
-        def dynamic_style():
+        def dynamic_style() -> None:
             app.jinja_loader = get_theme_loader()
         
         from .styles import theme_static_bp
 
         app.register_blueprint(theme_static_bp)
 
-        # ------------------------------------------------------------------
-        # Blueprints & error handlers
-        # ------------------------------------------------------------------
         from .blueprints import init_blueprints
         init_blueprints(app)
         from .utils.error_handlers import register_error_handlers
         register_error_handlers(app)
 
-        #-------------------------------------------------------------------
-        # User Loader
-        #-------------------------------------------------------------------
         @login_manager.user_loader
-        def load_user(user_id: int):
-            users = models.User.get(id=user_id)
-            return users[0] if users else None
+        def load_user(user_id: int) -> models.User | None:
+            return models.User.query.get(int(user_id))
     
         app.logger.info("Oshkelosh %s server ready (theme: %s)", config_name, app.config.get("ACTIVE_THEME", 'basic'))
 

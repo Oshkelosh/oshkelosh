@@ -1,15 +1,15 @@
+from flask import current_app
 
 from flask_wtf import FlaskForm
-from flask_wtf.file import FileField, FileRequired, FileAllowed, FileSize
+from flask_wtf.file import FileField, FileRequired, FileAllowed
 
-from wtforms import StringField, IntegerField, BooleanField, SubmitField, SelectField, EmailField, FloatField
+from wtforms import StringField, BooleanField, SubmitField, SelectField, EmailField, FloatField
 from wtforms.validators import DataRequired, Length, Optional
+from typing import Type, Any, List, Tuple
 
 from app.models import models
 
-import datetime
-
-def dynamic_form(configs):
+def dynamic_form(configs: models.Config) -> Type[FlaskForm]:
     type_map = {
         "TEXT" : StringField,
         "COLOR" : lambda **kw: StringField(**kw, render_kw={'type': 'color'}),
@@ -36,16 +36,16 @@ def dynamic_form(configs):
     attrs["submit"] = SubmitField('Submit')
     return type('DynamicForm', (FlaskForm,), attrs)
 
-def get_styles():
-    style = []
-    addons = models.Addon.get()
+def get_styles() -> List[str]:
+    style: List[str] = []
+    addons = models.Addon.query.all()
     for addon in addons:
         if addon.type == "STYLE":
             style.append(addon.name)
     return style
 
 
-def create_product_form(product):
+def create_product_form(product: models.Product) -> FlaskForm:
     class ProductForm(FlaskForm):
         name = StringField(
             'Name',
@@ -86,7 +86,7 @@ def create_product_form(product):
         submit = SubmitField('Submit')
     return ProductForm()
 
-def create_image_form(image):
+def create_image_form(image: models.Image) -> FlaskForm:
     class ImageForm(FlaskForm):
         title = StringField(
             'Title',
@@ -118,7 +118,7 @@ class AddImageForm(FlaskForm):
         'Image',
             validators=[
                 FileRequired(),
-                FileAllowed(ALLOWED_EXTENSIONS, 'Images only (png, jpg, jpeg, gif, webp)!')
+                FileAllowed(current_app.config.get("IMAGE_EXTENSIONS"), f'Images only ({', '.join(current_app.config.get("IMAGE_EXTENSIONS"))})!')
             ]
     )
     title = StringField(

@@ -1,12 +1,7 @@
 import bcrypt
+from typing import Any, Dict, List
 
-
-"""
-'NOT_NULL' check if entry of that type exists
-'PLACEHOLDER' check and fill table with minimum placeholders
-"""
-
-default_list = [
+default_list: List[Dict[str, Any]] = [
     {
         "object_name": "USER",
         "type": "NOT_NULL",

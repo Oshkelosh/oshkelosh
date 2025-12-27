@@ -6,15 +6,12 @@ Modular theme system.
 Zero Flask hacks, fully typed, works in tests.
 """
 import os
-from typing import Tuple
 
 import jinja2
-from flask import current_app, Blueprint, send_from_directory, render_template_string, abort
+from flask import current_app, Blueprint, send_from_directory, render_template_string, abort, Response
 
 from app.utils.site_config import get_config
 from app.utils.logging import get_logger
-
-import json
 
 log = get_logger(__name__)
 
@@ -47,7 +44,7 @@ theme_static_bp = Blueprint(
 )
 
 @theme_static_bp.route("/<path:filename>")
-def serve(filename):
+def serve(filename: str) -> Response:
     style_config = get_config('style_config')
     folder = os.path.join(current_app.root_path, "styles", style_config["static_path"])
 
@@ -84,7 +81,7 @@ def serve(filename):
     return send_from_directory(folder, filename)
 
 @theme_static_bp.route("/core/<path:filename>")
-def core(filename):
+def core(filename: str) -> Response:
     folder = os.path.join(current_app.root_path, "static")
 
     if not os.path.exists(folder):
