@@ -7,6 +7,13 @@
 		margin: 1em auto;
 		gap: 1em;
 	}
+	.content-alt {
+		padding: 1em;
+		margin: 1em auto;
+	}
+	.content-alt p {
+		min-height: 1em;
+	}
 
 	.card {
 		display: flex;
@@ -18,12 +25,12 @@
 		height: 25em;
 		background: oklch(100%, 0, 0);
 		border:1px solid rgba(0,0,0,0.1);
-		jsutify-content: space-between;
+		justify-content: space-between;
 		overflow: hidden;
 		
 	}
 	.card p, .card h3 { 
-		color: rgb(11, 11, 11)
+		color: rgb(11, 11, 11);
 		text-shadow: 1px 1px 2px rgba(0, 0, 0, 1); 
 	}
 	.bar {

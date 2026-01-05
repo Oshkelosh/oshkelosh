@@ -1,13 +1,221 @@
 {% extends 'base.html' %}
 
 {% block head %}
-<link rel="stylesheet" href="{{ url_for('theme_static.serve', filename='style.css') }}">
+<link rel="stylesheet" href="{{ url_for('theme_static.serve', filename='components.css') }}">
+<link rel="stylesheet" href="{{ url_for('theme_static.serve', filename='product-display.css') }}">
+<link rel="stylesheet" href="{{ url_for('theme_static.serve', filename='cart.css') }}">
 {% endblock %}
 
 {% block content %}
 
-	<div class="header">
-	
+	<div class="title-bar">
+		<h2>Cart</h2>
 	</div>
-	<h1>Cart</h1>
+	
+	<div class="content-alt">
+		{% if products %}
+		<div class="cart-items">
+			{% for item in products %}
+			<div class="cart-item" data-product-id="{{ item.product.id }}" data-product-price="{{ item.product.price }}">
+				<div class="cart-item-image">
+					{% if item.product.images %}
+					<a href="{{ url_for('main.product', product_id=item.product.id) }}">
+						<img src="{{ url_for('main.serve_image', filename=item.product.images[0].filename) }}" alt="{{ item.product.name }}">
+					</a>
+					{% else %}
+					<a href="{{ url_for('main.product', product_id=item.product.id) }}">
+						<div class="cart-item-placeholder">No Image</div>
+					</a>
+					{% endif %}
+				</div>
+				<div class="cart-item-details">
+					<h3><a href="{{ url_for('main.product', product_id=item.product.id) }}">{{ item.product.name }}</a></h3>
+					<p class="cart-item-price">{{ site.currency }} {{ "%.2f"|format(item.product.price) }} each</p>
+					<div class="cart-item-controls">
+						<div class="amount-ticker">
+							<button class="amount-btn decrement" aria-label="Decrease quantity">−</button>
+							<input type="number" class="amount-input cart-quantity" value="{{ item.amount }}" min="1" aria-label="Quantity">
+							<button class="amount-btn increment" aria-label="Increase quantity">+</button>
+						</div>
+						<button class="remove-item-btn" aria-label="Remove item from cart" title="Remove from cart">🗑️ Remove</button>
+					</div>
+				</div>
+				<div class="cart-item-total">
+					<p class="line-total">{{ site.currency }} {{ "%.2f"|format(item.product.price * item.amount) }}</p>
+				</div>
+				<div class="cart-item-remove">
+					<button class="remove-item-icon-btn" aria-label="Remove item from cart" title="Remove from cart">×</button>
+				</div>
+			</div>
+			{% endfor %}
+		</div>
+		
+		<div class="cart-summary">
+			<div class="cart-totals">
+				<div class="total-line">
+					<span>Subtotal:</span>
+					<span class="subtotal-amount">{{ site.currency }} {{ "%.2f"|format(subtotal) }}</span>
+				</div>
+				<p class="checkout-note">Taxes and shipping will be calculated during checkout.</p>
+			</div>
+			<div class="cart-actions">
+				<a href="{{ url_for('main.index') }}" class="continue-shopping">Continue Shopping</a>
+				{% if current_user.is_authenticated %}
+				<a href="{{ url_for('user.checkout') }}" class="checkout-btn">Proceed to Checkout</a>
+				{% else %}
+				<a href="{{ url_for('user.login') }}" class="checkout-btn">Log In to Checkout</a>
+				{% endif %}
+			</div>
+		</div>
+		{% else %}
+		<div class="empty-cart">
+			<h3>Your cart is empty</h3>
+			<p>Add some products to get started!</p>
+			<a href="{{ url_for('main.index') }}" class="continue-shopping">Continue Shopping</a>
+		</div>
+		{% endif %}
+	</div>
+	
+	<script>
+	document.addEventListener('DOMContentLoaded', function() {
+		const cartItems = document.querySelectorAll('.cart-item');
+		
+		cartItems.forEach(function(cartItem) {
+			const productId = cartItem.dataset.productId;
+			const quantityInput = cartItem.querySelector('.cart-quantity');
+			const decrementBtn = cartItem.querySelector('.amount-btn.decrement');
+			const incrementBtn = cartItem.querySelector('.amount-btn.increment');
+			const removeBtn = cartItem.querySelector('.remove-item-btn');
+			const removeIconBtn = cartItem.querySelector('.remove-item-icon-btn');
+			const lineTotal = cartItem.querySelector('.line-total');
+			const productPrice = parseFloat(cartItem.dataset.productPrice);
+			
+			// Update quantity
+			function updateQuantity(delta) {
+				let currentValue = parseInt(quantityInput.value) || 1;
+				let newValue = currentValue + delta;
+				if (newValue < 1) {
+					newValue = 1;
+				}
+				quantityInput.value = newValue;
+				sendUpdateRequest(newValue);
+			}
+			
+			// Send update request to server
+			function sendUpdateRequest(quantity) {
+				fetch('{{ url_for("user.update_cart_item") }}', {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+					},
+					body: JSON.stringify({
+						product_id: parseInt(productId),
+						quantity: quantity
+					})
+				})
+				.then(response => response.json())
+				.then(data => {
+					if (data.error) {
+						alert('Error: ' + data.error);
+						location.reload();
+					} else {
+						// Update line total
+						const newLineTotal = (productPrice * quantity).toFixed(2);
+						lineTotal.textContent = '{{ site.currency }} ' + newLineTotal;
+						
+						// Update page subtotal
+						if (data.subtotal !== undefined) {
+							const subtotalElement = document.querySelector('.subtotal-amount');
+							if (subtotalElement) {
+								subtotalElement.textContent = '{{ site.currency }} ' + data.subtotal.toFixed(2);
+							}
+						}
+					}
+				})
+				.catch(error => {
+					console.error('Error:', error);
+					alert('An error occurred. Please refresh the page.');
+				});
+			}
+			
+			// Decrement button
+			decrementBtn.addEventListener('click', function() {
+				updateQuantity(-1);
+			});
+			
+			// Increment button
+			incrementBtn.addEventListener('click', function() {
+				updateQuantity(1);
+			});
+			
+			// Validate input on change
+			quantityInput.addEventListener('change', function() {
+				let value = parseInt(this.value) || 1;
+				if (value < 1) {
+					value = 1;
+				}
+				this.value = value;
+				sendUpdateRequest(value);
+			});
+			
+			// Remove item function
+			function removeItem() {
+				if (!confirm('Are you sure you want to remove this item from your cart?')) {
+					return;
+				}
+				
+				fetch('{{ url_for("user.remove_cart_item") }}', {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+					},
+					body: JSON.stringify({
+						product_id: parseInt(productId)
+					})
+				})
+				.then(response => response.json())
+				.then(data => {
+					if (data.error) {
+						alert('Error: ' + data.error);
+					} else {
+						// Remove item from DOM
+						cartItem.style.transition = 'opacity 0.3s';
+						cartItem.style.opacity = '0';
+						setTimeout(function() {
+							cartItem.remove();
+							
+							// Update subtotal
+							if (data.subtotal !== undefined) {
+								const subtotalElement = document.querySelector('.subtotal-amount');
+								if (subtotalElement) {
+									subtotalElement.textContent = '{{ site.currency }} ' + data.subtotal.toFixed(2);
+								}
+							}
+							
+							// Check if cart is empty
+							const remainingItems = document.querySelectorAll('.cart-item');
+							if (remainingItems.length === 0) {
+								location.reload();
+							}
+						}, 300);
+					}
+				})
+				.catch(error => {
+					console.error('Error:', error);
+					alert('An error occurred. Please refresh the page.');
+				});
+			}
+			
+			// Remove item - text button
+			if (removeBtn) {
+				removeBtn.addEventListener('click', removeItem);
+			}
+			
+			// Remove item - icon button
+			if (removeIconBtn) {
+				removeIconBtn.addEventListener('click', removeItem);
+			}
+		});
+	});
+	</script>
 {% endblock %}

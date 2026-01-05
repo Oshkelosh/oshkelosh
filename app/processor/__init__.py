@@ -1,5 +1,6 @@
 from app.models import models
 from .processors import check_products, save_image
+from . import manual
 
 from app.utils.logging import get_logger
 

@@ -68,7 +68,7 @@ default_list: List[Dict[str, Any]] = [
         "data": {
             "type": "STYLE",
             "description": "Basic style and theme",
-            "active": "1",
+            "active": True,
         },
     },
     {
@@ -79,7 +79,7 @@ default_list: List[Dict[str, Any]] = [
         "data": {
             "type": "SUPPLIER",
             "description": "Printful Shop api",
-            "active": "1",
+            "active": True,
         },
     },
 

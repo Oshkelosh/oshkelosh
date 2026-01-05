@@ -1,0 +1,71 @@
+@layer components {
+
+	.flash-messages {
+		margin: 0 1rem;
+		margin-bottom: 1rem;
+	}
+
+	.flash-message {
+		background: color-mix(in oklab, var(--color-canvas), var(--color-mid-grey) 20%);
+		padding: 1rem;
+		border-radius: 1rem;
+		box-shadow: var(--shadow-md);
+		margin-bottom: 0.5rem;
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: 1rem;
+		position: relative;
+	}
+
+	.flash-message:last-child {
+		margin-bottom: 0;
+	}
+
+	.flash-message.success {
+		background: color-mix(in oklab, var(--color-green) 20%, var(--color-canvas));
+		border-left: 4px solid var(--color-green);
+	}
+
+	.flash-message.error,
+	.flash-message.danger {
+		background: color-mix(in oklab, var(--color-red) 35%, var(--color-canvas));
+		border-left: 4px solid var(--color-red);
+	}
+
+	.flash-message.warning {
+		background: color-mix(in oklab, var(--color-red) 15%, var(--color-canvas));
+		border-left: 4px solid oklch(70% 0.15 80);
+	}
+
+	.flash-message.info {
+		background: color-mix(in oklab, var(--color-blue) 20%, var(--color-canvas));
+		border-left: 4px solid var(--color-blue);
+	}
+
+	.flash-message.message {
+		background: color-mix(in oklab, var(--color-canvas), var(--color-mid-grey) 20%);
+		border-left: 4px solid var(--color-mid-grey);
+	}
+
+	.flash-close {
+		background: transparent;
+		border: none;
+		font-size: 1.5rem;
+		line-height: 1;
+		cursor: pointer;
+		padding: 0;
+		width: 1.5rem;
+		height: 1.5rem;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: var(--color-ink);
+		opacity: 0.6;
+		flex-shrink: 0;
+	}
+
+	.flash-close:hover {
+		opacity: 1;
+	}
+}

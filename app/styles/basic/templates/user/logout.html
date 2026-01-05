@@ -1,10 +1,14 @@
 {% extends 'base.html' %}
 
 {% block head %}
-<link rel="stylesheet" href="{{ url_for('theme_static.serve', filename='style.css') }}">
+<link rel="stylesheet" href="{{ url_for('theme_static.serve', filename='components.css') }}">
 {% endblock %}
 
 {% block content %}
+<div class="title-bar">
 	<h1>Logout</h1>
+</div>
+<div class="content-alt">
 	<p>You have been logged out.</p>
+</div>
 {% endblock %}

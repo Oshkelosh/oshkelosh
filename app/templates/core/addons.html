@@ -1,0 +1,17 @@
+{% extends 'core/base.html' %}
+{% block content %}
+<h2>Addons</h2>
+{% for addon in addons %}
+<h3>{{ addon.name }}</h3>
+<p>Description: {{ addon.description }}</p>
+<p>Version: {{ addon.version }}</p>
+<p>Download URL: {{ addon.download_url }}</p>
+<p>Active: {{ addon.active }}</p>
+<form method="post" action="{{ url_for('admin.set_addon_active', addon_id=addon.id, active=addon.active) }}">
+    <input class="btn" type="submit" name="submit" value="{{ 'Activate' if not addon.active else 'Deactivate' }}">
+</form>
+<br>
+{% endfor %}
+<br>
+{% endblock %}
+

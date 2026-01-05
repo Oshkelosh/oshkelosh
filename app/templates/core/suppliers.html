@@ -1,27 +1,61 @@
 {% extends 'core/base.html' %}
 {% block content %}
 <h2>Suppliers</h2>
-{% for supplier in suppliers %}
-<div>
-	<h3>{{ supplier.name }}</h3>
-	<p>{{ supplier.description }}</p>
-	<p>Last updated: {{ supplier.updated_at }}</p>
-	<p>Version: {{ supplier.version }}</p>
-	<br>
-	<form method="POST">
-		{{ supplier.form.hidden_tag() }}
-		{% for field in supplier.form if field.short_name not in ['csrf_token', 'submit'] %}
-		<div>
-			{%  if field.description %}<p>{{ field.description }}</p>{% endif %}
-			{{ field.label }}: {{ field() }}
-			{% if field.errors %}{{ field.errors[0] }}{% endif %}
-		</div>
+<br>
+<p>Activate/Deactivate suppliers under the Addons tab</p>
+<br>
+
+{% if suppliers %}
+	{% for supplier in suppliers %}
+	<div>
+		<h3>{{ supplier.name }}</h3>
+		<p>{{ supplier.description }}</p>
+		<p>Last updated: {{ supplier.updated_at }}</p>
+		<p>Version: {{ supplier.version }}</p>
 		<br>
-		{% endfor %}
-		{{ supplier.form.submit() }}
-	</form>
-	<br>
-</div>
-{% endfor %}
+		<form method="POST">
+			{{ supplier.form.hidden_tag() }}
+			{% for field in supplier.form if field.short_name not in ['csrf_token', 'submit'] %}
+			<div>
+				{%  if field.description %}<p>{{ field.description }}</p>{% endif %}
+				{{ field.label }}: {{ field() }}
+				{% if field.errors %}{{ field.errors[0] }}{% endif %}
+			</div>
+			<br>
+			{% endfor %}
+			{{ supplier.form.submit(class="btn") }}
+		</form>
+		<br>
+	</div>
+	{% endfor %}
+{% else %}
+	<p>No suppliers registered</p>
+{% endif %}
+<h3>Register Manual Supplier</h3>
+<form method="POST">
+	{{ manual_form.hidden_tag() }}
+	<table>
+		<tr>
+			<td style="text-align: right;">{{ manual_form.name.label }}: </td>
+			<td>{{ manual_form.name() }}</td>
+		</tr>
+		<tr>
+			<td style="text-align: right;">{{ manual_form.contact_name.label }}: </td>
+			<td>{{ manual_form.contact_name() }}</td>
+		</tr>
+		<tr>
+			<td style="text-align: right;">{{ manual_form.email.label }}: </td>
+			<td>{{ manual_form.email() }}</td>
+		</tr>
+		<tr>
+			<td style="text-align: right;">{{ manual_form.phone.label }}: </td>
+			<td>{{ manual_form.phone() }}</td>
+		</tr>
+		<tr><td colspan="2"><br></td></tr>
+		<tr>
+			<td colspan="2">{{ manual_form.submit(class="btn") }}</td>
+		</tr>
+	</table>
+</form>
 {% endblock %}
 

@@ -1,26 +1,175 @@
 {% extends 'base.html' %}
 
 {% block head %}
-<link rel="stylesheet" href="{{ url_for('theme_static.serve', filename='style.css') }}">
+<link rel="stylesheet" href="{{ url_for('theme_static.serve', filename='components.css') }}">
+<link rel="stylesheet" href="{{ url_for('theme_static.serve', filename='product-display.css') }}">
 {% endblock %}
 
 {% block content %}
-	<div class="header">
+	<div class="title-bar">
 		<h2>{{ product.name }}</h2>
 	</div>
-	<div class="image-container">
-		<div class="image-wrapper">
-			<img id="mainImage" class="main-image" src="" alt="Product image">
-			<button class="nav-arrow prev" aria-label="Previous image">‹</button>
-			<button class="nav-arrow next" aria-label="Next image">›</button>
+	<div class="content-alt">
+		<div class="image-container">
+			<div class="image-wrapper">
+				<button class="nav-arrow prev" aria-label="Previous image">‹</button>
+				<img id="mainImage" class="main-image" src="{{ url_for('main.serve_image', filename=product.images[0].filename) }}" alt="Product image">
+				<button class="nav-arrow next" aria-label="Next image">›</button>
+			</div>
+			<div class="thumbnails" id="tumbnails">
+				{% for image in images %}
+				<img class="thumb" src="{{ url_for('main.serve_image', filename=image.filename) }}" alt="Product image">
+				{% endfor %}
+			</div>
 		</div>
-		<div class="thumbnails" id="tumbnails"></div>
-	</div>
-	<script>
-	
-	</script>
-	<div>
-		<p>{{ product.description }}</p>
-		<p>{{ product.price }} {{ site.currency }}</p>
+		<script>
+		(function() {
+			// Get all thumbnail images and the main image
+			const thumbnails = document.querySelectorAll('.thumb');
+			const mainImage = document.getElementById('mainImage');
+			const prevButton = document.querySelector('.nav-arrow.prev');
+			const nextButton = document.querySelector('.nav-arrow.next');
+			
+			// Extract image sources from thumbnails
+			const imageSources = Array.from(thumbnails).map(thumb => thumb.src);
+			
+			// Track current image index
+			let currentIndex = 0;
+			
+			// Function to update the main image and active thumbnail
+			function updateImage(index) {
+				// Ensure index is within bounds using modulo for circular wrapping
+				currentIndex = ((index % imageSources.length) + imageSources.length) % imageSources.length;
+				
+				// Update main image source
+				mainImage.src = imageSources[currentIndex];
+				
+				// Update active thumbnail highlighting
+				thumbnails.forEach((thumb, i) => {
+					if (i === currentIndex) {
+						thumb.classList.add('active');
+					} else {
+						thumb.classList.remove('active');
+					}
+				});
+			}
+			
+			// Initialize: set first thumbnail as active
+			if (thumbnails.length > 0) {
+				updateImage(0);
+			}
+			
+			// Previous button event listener
+			prevButton.addEventListener('click', function() {
+				updateImage(currentIndex - 1);
+			});
+			
+			// Next button event listener
+			nextButton.addEventListener('click', function() {
+				updateImage(currentIndex + 1);
+			});
+			
+			// Thumbnail click event listeners
+			thumbnails.forEach((thumb, index) => {
+				thumb.addEventListener('click', function() {
+					updateImage(index);
+				});
+			});
+		})();
+		</script>
+		<div>
+			<p>{{ product.description }}</p>
+			<p>{{ product.price }} {{ site.currency }}</p>
+			<div class="cart-controls">
+				<div class="amount-ticker">
+					<button class="amount-btn decrement" aria-label="Decrease amount">−</button>
+					<input type="number" id="productAmount" class="amount-input" value="1" min="1" aria-label="Quantity">
+					<button class="amount-btn increment" aria-label="Increase amount">+</button>
+				</div>
+				<button id="addToCartBtn" class="add-to-cart-btn">Add to Cart</button>
+			</div>
+		</div>
+		<script>
+		// Cart controls functionality
+		document.addEventListener('DOMContentLoaded', function() {
+			const amountInput = document.getElementById('productAmount');
+			const decrementBtn = document.querySelector('.amount-btn.decrement');
+			const incrementBtn = document.querySelector('.amount-btn.increment');
+			const addToCartBtn = document.getElementById('addToCartBtn');
+			const productId = {{ product.id }};
+			
+			// Update amount with validation
+			function updateAmount(delta) {
+				let currentValue = parseInt(amountInput.value) || 1;
+				let newValue = currentValue + delta;
+				if (newValue < 1) {
+					newValue = 1;
+				}
+				amountInput.value = newValue;
+			}
+			
+			// Decrement button
+			decrementBtn.addEventListener('click', function() {
+				updateAmount(-1);
+			});
+			
+			// Increment button
+			incrementBtn.addEventListener('click', function() {
+				updateAmount(1);
+			});
+			
+			// Validate input on change
+			amountInput.addEventListener('change', function() {
+				let value = parseInt(this.value) || 1;
+				if (value < 1) {
+					value = 1;
+				}
+				this.value = value;
+			});
+			
+			// Add to cart button
+			addToCartBtn.addEventListener('click', function() {
+				const amount = parseInt(amountInput.value) || 1;
+				const btn = this;
+				const originalText = btn.textContent;
+				
+				// Disable button during request
+				btn.disabled = true;
+				btn.textContent = 'Adding...';
+				
+				// Send AJAX request
+				fetch('{{ url_for("user.add_to_cart") }}', {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+					},
+					body: JSON.stringify({
+						product_id: productId,
+						amount: amount
+					})
+				})
+				.then(response => response.json())
+				.then(data => {
+					btn.textContent = 'Added to Cart!';
+					btn.style.backgroundColor = 'var(--color-positive)';
+					setTimeout(() => {
+						btn.textContent = originalText;
+						btn.style.backgroundColor = '';
+						btn.disabled = false;
+					}, 2000);
+				})
+				.catch(error => {
+					console.error('Error:', error);
+					btn.textContent = 'Error - Try Again';
+					btn.style.backgroundColor = 'var(--color-negative)';
+					setTimeout(() => {
+						btn.textContent = originalText;
+						btn.style.backgroundColor = '';
+						btn.disabled = false;
+					}, 2000);
+				});
+			});
+		});
+		</script>
 	</div>
 {% endblock %}

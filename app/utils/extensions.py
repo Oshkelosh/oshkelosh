@@ -20,6 +20,7 @@ class RedisClient:
         url = app.config.get('REDIS_URL', 'redis://localhost:6379/0')
         self._client = redis.from_url(url)
         app.extensions['redis'] = self
+        logger.info(f"Redis initialized: {url}")
 
     @property
     def client(self) -> "Redis[str]":

@@ -1,12 +1,14 @@
 {% extends 'base.html' %}
 
 {% block head %}
-<link rel="stylesheet" href="{{ url_for('theme_static.serve', filename='style.css') }}">
+<link rel="stylesheet" href="{{ url_for('theme_static.serve', filename='components.css') }}">
 {% endblock %}
 
 {% block content %}
-	<div class="header">
+	<div class="title-bar">
+		<h2>About</h2>
 	</div>
-	<h1>About {{ site.site_name }}</h1>
-	<p>{{ site.about|replace("\n","</p><p>")|safe }}</p>
+	<div class="content-alt">
+		<p>{{ site.about|replace("\n","</p><p>")|safe }}</p>
+	</div>
 {% endblock %}

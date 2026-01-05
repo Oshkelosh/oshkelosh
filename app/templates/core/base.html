@@ -9,6 +9,7 @@
 	<link rel="stylesheet" href="{{ url_for('theme_static.core', filename='css/layout.css') }}">
 	<link rel="stylesheet" href="{{ url_for('theme_static.core', filename='css/buttons.css') }}">
 	<link rel="stylesheet" href="{{ url_for('theme_static.core', filename='css/list-items.css') }}">
+	<link rel="stylesheet" href="{{ url_for('theme_static.core', filename='css/flash.css') }}">
 </head>
 <body>
 		<div class="main-container">
@@ -19,16 +20,28 @@
 					<h2>Welcome, {{ current_user.name }}</h2>
 					<a class="btn" href="{{ url_for('admin.index') }}">Main</a>
 					<a class="btn" href="{{ url_for('admin.settings') }}">Site Settings</a>
+					<a class="btn" href="{{ url_for('admin.addons') }}">Addons</a>
 					<a class="btn" href="{{ url_for('admin.users') }}">Users</a>
 					<a class="btn" href="{{ url_for('admin.products') }}">Products</a>
 					<a class="btn" href="{{ url_for('admin.images') }}">Images</a>
 					<a class="btn" href="{{ url_for('admin.suppliers') }}">Suppliers</a>
 					<a class="btn" href="{{ url_for('admin.payment_processors') }}">Payment Preccessors</a>
-					<a class="btn" href="{{ url_for('admin.addons') }}">Addons</a>
 					<a class="btn" href="{{ url_for('main.index') }}">~ Shop Front ~</a>
 
 				</div>
 				<br>
+				{% with messages = get_flashed_messages(with_categories=true) %}
+					{% if messages %}
+						<div class="flash-messages">
+							{% for category, message in messages %}
+								<div class="flash-message {{ category }}">
+									{{ message }}
+									<button class="flash-close" onclick="this.parentElement.remove()">×</button>
+								</div>
+							{% endfor %}
+						</div>
+					{% endif %}
+				{% endwith %}
 				<div class="content">
 					{% block content %}
 					{% endblock %}

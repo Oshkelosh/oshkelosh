@@ -22,5 +22,8 @@
 	.list-item input {
 		width: 50ch;
 	}
+	.list-container.inactive{
+		background-color: color-mix(in oklch, var(--color-canvas), var(--color-red) 20%);
+	}
 
 }

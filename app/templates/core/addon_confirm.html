@@ -1,0 +1,66 @@
+{% extends 'core/base.html' %}
+{% block content %}
+<h2>Confirm Addon Replacement</h2>
+
+<div style="margin: 20px 0;">
+    <h3>Existing Addon</h3>
+    <p><strong>Name:</strong> {{ existing_addon.name }}</p>
+    <p><strong>Type:</strong> {{ existing_addon.type }}</p>
+    <p><strong>Version:</strong> {{ existing_addon.version or 'N/A' }}</p>
+    <p><strong>Description:</strong> {{ existing_addon.description or 'N/A' }}</p>
+</div>
+
+<div style="margin: 20px 0;">
+    <h3>New Addon</h3>
+    <p><strong>Name:</strong> {{ new_addon_data.name }}</p>
+    <p><strong>Type:</strong> {{ new_addon_data.type }}</p>
+    <p><strong>Version:</strong> {{ new_addon_data.get('version', 'N/A') }}</p>
+    <p><strong>Description:</strong> {{ new_addon_data.get('description', 'N/A') }}</p>
+</div>
+
+<div style="margin: 20px 0; padding: 15px; background-color: {% if is_compatible %}#e8f5e9{% else %}#fff3e0{% endif %}; border-left: 4px solid {% if is_compatible %}#4caf50{% else %}#ff9800{% endif %};">
+    <h3>Compatibility Status</h3>
+    {% if is_compatible %}
+        <p style="color: #2e7d32;"><strong>✓ Compatible</strong></p>
+        <p>All existing configuration keys are present in the new addon. Your existing settings will be preserved.</p>
+    {% else %}
+        <p style="color: #e65100;"><strong>⚠ Incompatible</strong></p>
+        <p>The following configuration keys exist in the current addon but are not in the new addon:</p>
+        <ul>
+            {% for key in incompatible_keys %}
+            <li><code>{{ key }}</code></li>
+            {% endfor %}
+        </ul>
+        <p><strong>Warning:</strong> These configuration keys and their values will be deleted.</p>
+    {% endif %}
+</div>
+
+<div style="margin: 20px 0; padding: 15px; background-color: #ffebee; border-left: 4px solid #f44336;">
+    <h3>⚠ Warning</h3>
+    <p>Replacing this addon will:</p>
+    <ul>
+        <li>Delete all files from the existing addon</li>
+        <li>Replace the addon with the new version</li>
+        {% if not is_compatible %}
+        <li>Delete incompatible configuration keys (listed above)</li>
+        {% endif %}
+        {% if is_compatible %}
+        <li>Preserve existing configuration values for compatible keys</li>
+        {% endif %}
+    </ul>
+    <p><strong>This action cannot be undone.</strong></p>
+</div>
+
+<form method="POST" action="{{ url_for('admin.confirm_addon_upload') }}">
+    {{ form.hidden_tag() }}
+    {{ form.addon_data() }}
+    <div style="margin: 20px 0;">
+        <button type="submit" name="confirm" class="btn" style="background-color: #f44336; color: white; margin-right: 10px;">
+            Confirm Replacement
+        </button>
+        <a href="{{ url_for('admin.index') }}" class="btn" style="background-color: #757575; color: white;">
+            Cancel
+        </a>
+    </div>
+</form>
+{% endblock %}

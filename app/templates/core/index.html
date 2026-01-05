@@ -3,6 +3,55 @@
 <h2> Main</h2>
 <h3>Welcome the the Oshkelosh Admin Panel</h3>
 <p>Settings for every aspect of this shop can be found in the above tabs</p>
+
+<h3>Install Addon</h3>
+<div style="margin: 20px 0;">
+	<div style="border-bottom: 2px solid #ddd; margin-bottom: 20px;">
+		<button type="button" class="tab active" onclick="showTab('url-tab')" id="url-tab-btn">From URL</button>
+		<button type="button" class="tab" onclick="showTab('file-tab')" id="file-tab-btn">Upload ZIP File</button>
+	</div>
+	
+	<form method="POST" action="{{ url_for('admin.upload_addon') }}" enctype="multipart/form-data">
+		{{ upload_form.hidden_tag() }}
+		
+		<div id="url-tab" class="tab-content active">
+			<div style="margin-bottom: 15px;">
+				{{ upload_form.url.label }}
+				{{ upload_form.url(style="width: 100%; padding: 8px; margin-top: 5px;") }}
+				{% if upload_form.url.errors %}
+					<div style="color: red; font-size: 0.9em; margin-top: 5px;">
+						{% for error in upload_form.url.errors %}
+							{{ error }}
+						{% endfor %}
+					</div>
+				{% endif %}
+				{% if upload_form.url.description %}
+					<p style="font-size: 0.9em; color: #666; margin-top: 5px;">{{ upload_form.url.description }}</p>
+				{% endif %}
+			</div>
+		</div>
+		
+		<div id="file-tab" class="tab-content">
+			<div style="margin-bottom: 15px;">
+				{{ upload_form.zip_file.label }}
+				{{ upload_form.zip_file(style="margin-top: 5px;") }}
+				{% if upload_form.zip_file.errors %}
+					<div style="color: red; font-size: 0.9em; margin-top: 5px;">
+						{% for error in upload_form.zip_file.errors %}
+							{{ error }}
+						{% endfor %}
+					</div>
+				{% endif %}
+				{% if upload_form.zip_file.description %}
+					<p style="font-size: 0.9em; color: #666; margin-top: 5px;">{{ upload_form.zip_file.description }}</p>
+				{% endif %}
+			</div>
+		</div>
+		
+		<button type="submit" class="btn" style="margin-top: 10px;">{{ upload_form.submit.label.text }}</button>
+	</form>
+</div>
+
 <h3>Suppliers last updated goes here</h3>
 <h3>Product Force Sync Button goes here</h3>
 <form
@@ -20,5 +69,33 @@
 <p>No idea how this is done</p>
 <h3>Site Status</h3>
 <p>Live site up?, Payment gateway OK?, Email/SMTP working?, Disk/space usage (if self-hosted)</p>
+
+<script>
+function showTab(tabName) {
+	// Hide all tab contents
+	document.querySelectorAll('.tab-content').forEach(function(tab) {
+		tab.classList.remove('active');
+	});
+	
+	// Remove active class from all buttons
+	document.querySelectorAll('.tab').forEach(function(btn) {
+		btn.classList.remove('active');
+	});
+	
+	// Show selected tab
+	document.getElementById(tabName).classList.add('active');
+	
+	// Highlight active button
+	var btnId = tabName + '-btn';
+	document.getElementById(btnId).classList.add('active');
+	
+	// Clear the other field when switching tabs
+	if (tabName === 'url-tab') {
+		document.querySelector('input[name="zip_file"]').value = '';
+	} else {
+		document.querySelector('input[name="url"]').value = '';
+	}
+}
+</script>
 {% endblock %}
 

@@ -2,9 +2,9 @@
 {% block content %}
 <h2>Products</h2>
 {% for product in products %}
-<a href="{{ url_for('admin.product', product_id=product.id) }}" class="list-container">
+<a href="{{ url_for('admin.product', product_id=product.id) }}" class="list-container {% if not product.active %}inactive{% endif %}">
 	<span class="list-item">
-		<img src="{{ url_for('main.serve_image', filename=product.primary_image.filename) }}" style="width: 80px; height:80px;">
+		<img src="{{ url_for('main.serve_image', filename=product.images[0].filename) }}" style="width: 80px; height:80px;">
 	</span>
 	<span class="list-item">
 		<h3>{{ product.name }}</h3>
@@ -12,6 +12,22 @@
 	</span>
 </a>
 {% endfor %}
+{% if add_product_form.supplier_id.choices %}
 <br>
+<h3>Add Manual Product</h3>
+<form method="POST">
+	{{ add_product_form.hidden_tag() }}
+	<table>
+	{% for field in add_product_form if field.short_name not in ['csrf_token', 'submit'] %}
+	<tr>
+		<td style="text-align: right;">{{ field.label }}: </td>
+		<td>{{ field() }}</td>
+		{% if field.errors %}{{ field.errors[0] }}{% endif %}
+	</tr>
+	{% endfor %}
+	</table>
+	{{ add_product_form.submit(class="btn") }}
+</form>
+{% endif %}
 {% endblock %}
 

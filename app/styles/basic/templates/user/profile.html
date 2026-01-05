@@ -1,45 +1,46 @@
 {% extends 'base.html' %}
 
 {% block head %}
-<link rel="stylesheet" href="{{ url_for('theme_static.serve', filename='style.css') }}">
+<link rel="stylesheet" href="{{ url_for('theme_static.serve', filename='components.css') }}">
 {% endblock %}
 
 {% block content %}
-<div class="header">
-<h1>Profile</h1>
+<div class="title-bar">
+	<h1>Profile</h1>
 </div>
-<h2 style="text-align:center;">{{ current_user.name }} {{ current_user.surname }}</h2>
-<table style="margin:auto;">
-	<tr><td>Email: </td><td>{{ current_user.email }}</td></tr>
-	<tr><td>Phone Number: </td><td>{{ current_user.phone }}</td></tr>
-</table>
+<div class="content-alt">
+	<h2 style="text-align:center;">{{ current_user.name }} {{ current_user.surname }}</h2>
+	<table style="margin:auto;">
+		<tr><td>Email: </td><td>{{ current_user.email }}</td></tr>
+		<tr><td>Phone Number: </td><td>{{ current_user.phone }}</td></tr>
+	</table>
 
-<h3 style="text-align:center;">Billing address</h3>
-{% for address in addresses %}
-{% if address.type == 'BILLING' %}
-<table style="margin:auto;">
-	<tr><td>Street:</td><td>{{address.street}}</td></tr>
-	<tr><td>City:</td><td>{{address.city}}</td></tr>
-	<tr><td>State:</td><td>{{address.state}}</td></tr>
-	<tr><td>Postal Code:</td><td>{{address.postal_code}}</td></tr>
-	<tr><td>Country:</td><td>{{address.street}}</td></tr>
-</table>
-<br>
-{% endif %}
-{% endfor %}
+	<h3 style="text-align:center;">Billing address</h3>
+	{% for address in addresses %}
+	{% if address.type == 'BILLING' %}
+	<table style="margin:auto;">
+		<tr><td>Street:</td><td>{{address.street}}</td></tr>
+		<tr><td>City:</td><td>{{address.city}}</td></tr>
+		<tr><td>State:</td><td>{{address.state}}</td></tr>
+		<tr><td>Postal Code:</td><td>{{address.postal_code}}</td></tr>
+		<tr><td>Country:</td><td>{{address.street}}</td></tr>
+	</table>
+	<br>
+	{% endif %}
+	{% endfor %}
 
-<h3 style="text-align:center;">Shipping address</h3>
-{% for address in addresses %}
-{% if address.type == 'SHIPPING' %}
-<table style="margin:auto;">
-	<tr><td>Street:</td><td>{{address.street}}</td></tr>
-	<tr><td>City:</td><td>{{address.city}}</td></tr>
-	<tr><td>State:</td><td>{{address.state}}</td></tr>
-	<tr><td>Postal Code:</td><td>{{address.postal_code}}</td></tr>
-	<tr><td>Country:</td><td>{{address.street}}</td></tr>
-</table>
-<br>
-{% endif %}
-{% endfor %}
-
+	<h3 style="text-align:center;">Shipping address</h3>
+	{% for address in addresses %}
+	{% if address.type == 'SHIPPING' %}
+	<table style="margin:auto;">
+		<tr><td>Street:</td><td>{{address.street}}</td></tr>
+		<tr><td>City:</td><td>{{address.city}}</td></tr>
+		<tr><td>State:</td><td>{{address.state}}</td></tr>
+		<tr><td>Postal Code:</td><td>{{address.postal_code}}</td></tr>
+		<tr><td>Country:</td><td>{{address.street}}</td></tr>
+	</table>
+	<br>
+	{% endif %}
+	{% endfor %}
+</div>
 {% endblock %}

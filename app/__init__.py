@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from .config import config_by_name
 from .utils.logging import setup_logging
 from .utils.extensions import login_manager, redis_client
-from .database import db
+from .database import db, ensure_db_directory
 from .styles import get_theme_loader
 from pathlib import Path
 
@@ -51,16 +51,36 @@ def create_app(config_name: Optional[str] = None) -> Flask:
     # ------------------------------------------------------------------
     # SQLAlchemy Database
     # ------------------------------------------------------------------
-    db.init_app(app)
+    try:
+        # Ensure database directory exists (for SQLite)
+        ensure_db_directory(app)
+        db.init_app(app)
+    except (OSError, ValueError) as e:
+        app.logger.error(
+            "Failed to initialize database: %s. "
+            "Please check your DATABASE_URL configuration and ensure "
+            "you have write permissions for the database directory.",
+            str(e)
+        )
+        raise
     
     with app.app_context():
         # ------------------------------------------------------------------
         # Database & defaults
         # ------------------------------------------------------------------
         # Create SQLAlchemy tables from models
-        db.create_all()
-        
         from app.models import models
+        
+        try:
+            db.create_all()
+        except Exception as e:
+            app.logger.error(
+                "Failed to create database tables: %s. "
+                "Please check your database connection and permissions.",
+                str(e)
+            )
+            raise
+        
         from app.database import default_list
         models.set_defaults(default_list = default_list)
 

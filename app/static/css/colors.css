@@ -1,16 +1,13 @@
 
 :root {
-	--lch-blue: 54% 0.15 255;
-	--lch-red: 51% 0.2 31;
-	--lch-green: 65% 0.23 142;
+	--color-blue: oklch(54% 0.15 255);
+	--color-red: oklch(51% 0.2 31);
+	--color-green: oklch(65% 0.23 142);
 
 	--color-mid-grey: oklch(50% 0 0);
 
 	--color-canvas: oklch(98% 0 0);     /* Neutral background */
 	--color-ink: oklch(15% 0 0);        /* Primary text */
-	--color-link: oklch(var(--lch-blue));
-	--color-negative: oklch(var(--lch-red));
-	--color-positive: oklch(var(--lch-green));
 
 	--shadow-color: color-mix(in oklch, var(--color-ink) 15%, transparent);
 	--shadow-sm: 0 1px 3px var(--shadow-color);

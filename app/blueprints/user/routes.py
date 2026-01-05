@@ -139,29 +139,37 @@ def profile() -> str:
 @bp.route("/cart")
 def cart() -> str:
     cart_products = []
+    subtotal = 0.0
+    
     if current_user.is_authenticated:
         for cart_item in current_user.cart_items:
             product = cart_item.product
             if product:
                 details = {
                     "product": product,
-                    "amount": cart_item.quantity
+                    "amount": cart_item.quantity,
+                    "cart_item_id": cart_item.id
                 }
                 cart_products.append(details)
+                subtotal += product.price * cart_item.quantity
     else:
         if 'cart' in session:
             for entry in session['cart']:
                 product = models.Product.query.get(entry['product_id'])
                 if product:
+                    amount = entry.get("amount", 1)
                     details={
                         "product": product,
-                        "amount": entry.get("amount", 1)
+                        "amount": amount,
+                        "product_id": product.id
                     }
                     cart_products.append(details)
+                    subtotal += product.price * amount
     return render_template(
         "user/cart.html",
         site = site_config.get_config("site_config"),
         products = cart_products,
+        subtotal = subtotal,
     )
 
 @bp.route("/checkout")
@@ -206,3 +214,112 @@ def add_to_cart() -> tuple[Response, int]:
         cart_size = len(session['cart'])
     
     return jsonify({'message': 'Added to cart', 'cart_size': cart_size}), 201
+
+@bp.route('/updatecart', methods=['POST'])
+def update_cart_item() -> tuple[Response, int]:
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Invalid request'}), 400
+    
+    product_id = data.get('product_id')
+    quantity = data.get('quantity', 1)
+    
+    if quantity < 1:
+        return jsonify({'error': 'Quantity must be at least 1'}), 400
+    
+    if current_user.is_authenticated:
+        cart_item = models.Cart.query.filter_by(
+            user_id=current_user.id,
+            product_id=product_id
+        ).first()
+        
+        if not cart_item:
+            return jsonify({'error': 'Item not found in cart'}), 404
+        
+        cart_item.quantity = quantity
+        db.session.commit()
+        
+        # Calculate updated subtotal
+        subtotal = sum(item.product.price * item.quantity for item in current_user.cart_items if item.product)
+        
+        return jsonify({
+            'message': 'Cart updated',
+            'quantity': quantity,
+            'subtotal': subtotal
+        }), 200
+    else:
+        if 'cart' not in session:
+            return jsonify({'error': 'Cart not found'}), 404
+        
+        # Find and update item in session cart
+        found = False
+        for item in session['cart']:
+            if item.get('product_id') == product_id:
+                item['amount'] = quantity
+                found = True
+                break
+        
+        if not found:
+            return jsonify({'error': 'Item not found in cart'}), 404
+        
+        session.modified = True
+        
+        # Calculate updated subtotal
+        subtotal = 0.0
+        for entry in session['cart']:
+            product = models.Product.query.get(entry['product_id'])
+            if product:
+                subtotal += product.price * entry.get('amount', 1)
+        
+        return jsonify({
+            'message': 'Cart updated',
+            'quantity': quantity,
+            'subtotal': subtotal
+        }), 200
+
+@bp.route('/removecart', methods=['POST'])
+def remove_cart_item() -> tuple[Response, int]:
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Invalid request'}), 400
+    
+    product_id = data.get('product_id')
+    
+    if current_user.is_authenticated:
+        cart_item = models.Cart.query.filter_by(
+            user_id=current_user.id,
+            product_id=product_id
+        ).first()
+        
+        if not cart_item:
+            return jsonify({'error': 'Item not found in cart'}), 404
+        
+        db.session.delete(cart_item)
+        db.session.commit()
+        
+        # Calculate updated subtotal
+        subtotal = sum(item.product.price * item.quantity for item in current_user.cart_items if item.product)
+        
+        return jsonify({
+            'message': 'Item removed from cart',
+            'subtotal': subtotal
+        }), 200
+    else:
+        if 'cart' not in session:
+            return jsonify({'error': 'Cart not found'}), 404
+        
+        # Remove item from session cart
+        session['cart'] = [item for item in session['cart'] if item.get('product_id') != product_id]
+        session.modified = True
+        
+        # Calculate updated subtotal
+        subtotal = 0.0
+        for entry in session['cart']:
+            product = models.Product.query.get(entry['product_id'])
+            if product:
+                subtotal += product.price * entry.get('amount', 1)
+        
+        return jsonify({
+            'message': 'Item removed from cart',
+            'subtotal': subtotal
+        }), 200

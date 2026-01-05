@@ -1,0 +1,191 @@
+@layer components;
+
+@layer components {
+	.image-container {
+	    max-width: 600px;
+	    margin: 40px auto;
+	    font-family: system-ui, sans-serif;
+	  }
+
+	  .image-wrapper {
+		display: flex;
+	    position: relative;
+	    overflow: hidden;
+	    border-radius: 12px;
+	    box-shadow: var(--shadow-md);
+	  }
+
+	  .main-image {
+	    display: block;
+	    width: 100%;
+	    height: auto;
+	    aspect-ratio: 1 / 1;
+	    object-fit: contain;
+	    transition: opacity 0.3s ease;
+		background: color-mix(in oklch, var(--color-canvas), var(--color-mid-grey) 5%);
+	  }
+
+	  /* Navigation arrows */
+	  .nav-arrow {
+	    position: absolute;
+	    top: 50%;
+	    transform: translateY(-50%);
+	    background: rgba(0,0,0,0.4);
+	    color: white;
+	    border: none;
+	    width: 44px;
+	    height: 44px;
+	    border-radius: 50%;
+	    font-size: 24px;
+	    cursor: pointer;
+	    display: flex;
+	    align-items: center;
+	    justify-content: center;
+	    transition: background 0.2s;
+	    z-index: 2;
+	  }
+
+	  .nav-arrow:hover {
+	    background: rgba(0,0,0,0.7);
+	  }
+
+	  .nav-arrow.prev {
+	    left: 12px;
+	  }
+
+	  .nav-arrow.next {
+	    right: 12px;
+	  }
+
+	  .nav-arrow:disabled {
+	    opacity: 0;
+	    cursor: default;
+	  }
+
+	  /* Thumbnails */
+	  .thumbnails {
+	    display: flex;
+	    gap: 8px;
+	    margin-top: 16px;
+	    overflow-x: auto;
+	    padding: 8px 0;
+	    scrollbar-width: thin;
+		justify-content: center;
+	  }
+
+	  .thumbnails::-webkit-scrollbar {
+	    height: 6px;
+	  }
+
+	  .thumbnails::-webkit-scrollbar-thumb {
+	    background: #ccc;
+	    border-radius: 3px;
+	  }
+
+	  .thumb {
+	    flex: 0 0 80px;
+	    height: 100px;
+	    object-fit: cover;
+	    border-radius: 8px;
+	    cursor: pointer;
+		margin: 0.5em;
+	  }
+
+	  .thumb.active {
+		box-shadow: var(--shadow-sm);
+		background: color-mix(in oklch, var(--color-canvas), var(--color-mid-grey) 5%);
+	  }
+
+	  .thumb:hover {
+	    border: 1px solid rgba(0,0,0,0.1);
+	  }
+
+	  /* Cart controls */
+	  .cart-controls {
+		display: flex;
+		gap: 12px;
+		align-items: center;
+		margin-top: 20px;
+		flex-wrap: wrap;
+	  }
+
+	  .amount-ticker {
+		display: flex;
+		align-items: center;
+		border: 1px solid rgba(0,0,0,0.2);
+		border-radius: 8px;
+		overflow: hidden;
+		background: var(--color-canvas);
+	  }
+
+	  .amount-btn {
+		background: color-mix(in oklch, var(--color-canvas), var(--color-ink) 10%);
+		border: none;
+		width: 36px;
+		height: 36px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		cursor: pointer;
+		font-size: 20px;
+		font-weight: bold;
+		transition: background 0.2s;
+		color: var(--color-ink);
+		user-select: none;
+	  }
+
+	  .amount-btn:hover {
+		background: color-mix(in oklch, var(--color-canvas), var(--color-ink) 20%);
+	  }
+
+	  .amount-btn:active {
+		background: color-mix(in oklch, var(--color-canvas), var(--color-ink) 30%);
+	  }
+
+	  .amount-input {
+		width: 60px;
+		height: 36px;
+		border: none;
+		border-left: 1px solid rgba(0,0,0,0.1);
+		border-right: 1px solid rgba(0,0,0,0.1);
+		text-align: center;
+		font-size: 16px;
+		background: var(--color-canvas);
+		color: var(--color-ink);
+		-moz-appearance: textfield;
+	  }
+
+	  .amount-input::-webkit-outer-spin-button,
+	  .amount-input::-webkit-inner-spin-button {
+		-webkit-appearance: none;
+		margin: 0;
+	  }
+
+	  .add-to-cart-btn {
+		padding: 10px 24px;
+		background: color-mix(in oklch, var(--color-link), var(--color-canvas) 20%);
+		color: var(--color-canvas);
+		border: none;
+		border-radius: 8px;
+		font-size: 16px;
+		font-weight: 500;
+		cursor: pointer;
+		transition: background 0.2s, transform 0.1s;
+		white-space: nowrap;
+	  }
+
+	  .add-to-cart-btn:hover:not(:disabled) {
+		background: color-mix(in oklch, var(--color-link), var(--color-canvas) 10%);
+		transform: translateY(-1px);
+		box-shadow: var(--shadow-sm);
+	  }
+
+	  .add-to-cart-btn:active:not(:disabled) {
+		transform: translateY(0);
+	  }
+
+	  .add-to-cart-btn:disabled {
+		opacity: 0.7;
+		cursor: not-allowed;
+	  }
+}

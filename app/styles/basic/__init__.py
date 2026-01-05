@@ -7,7 +7,7 @@ default_list = [
         "data": {
             "value": "basic",
             "description": "Style Name",
-            "editable": "0",
+            "editable": False,
         },
     },
 
@@ -19,7 +19,7 @@ default_list = [
         "data": {
             "value": "basic/templates",
             "description": "Template path for the 'Basic' style.",
-            "editable": "0",
+            "editable": False,
         },
     },
     {
@@ -30,7 +30,7 @@ default_list = [
         "data": {
             "value": "default",
             "description": "Default theme for for the 'Basic' style.",
-            "editable": "0",
+            "editable": False,
         },
     },
 
@@ -42,7 +42,7 @@ default_list = [
         "data": {
             "value": "basic/theme/default/static",
             "description": "Static path for the 'Basic' theme.",
-            "editable": "0",
+            "editable": False,
         },
     },
     {

@@ -139,7 +139,7 @@ class Product(db.Model):
     
     id = Column(Integer, primary_key=True)
     product_id = Column(String, nullable=True)  # ID at supplier
-    supplier_id = Column(Integer, ForeignKey('addon_table.id'), nullable=True)
+    supplier_id = Column(Integer, ForeignKey('addon_table.id'), nullable=False)
     payment_processor_id = Column(Integer, ForeignKey('addon_table.id'), nullable=True)
     name = Column(String, nullable=False)
     description = Column(Text, default='An amazing new product!', server_default='An amazing new product!')
@@ -152,24 +152,12 @@ class Product(db.Model):
     updated_at = Column(DateTime, onupdate=datetime.utcnow, server_default=func.now())
     
     # Relationships
-    images = relationship('Image', backref='product', lazy='dynamic', cascade='all, delete-orphan', order_by='Image.position')
+    images = relationship('Image', backref='product', lazy='selectin', cascade='all, delete-orphan', order_by='Image.position')
     categories = relationship('Category', secondary=product_category, backref='products', lazy='dynamic')
     variants = relationship('Product', backref=backref('base_product', remote_side=[id]), lazy='dynamic')
     supplier = relationship('Addon', foreign_keys=[supplier_id], backref='supplied_products')
     payment_processor = relationship('Addon', foreign_keys=[payment_processor_id], backref='processed_products')
     
-    @classmethod
-    def get_preview(cls, product_id: int) -> "Product | None":
-        from sqlalchemy.orm import joinedload
-        product = cls.query.options(
-            joinedload(cls.images)
-        ).filter_by(id=product_id).first()
-        
-        if product:
-            primary_image = next((img for img in product.images if img.position == 1), None)
-            product.primary_image = primary_image
-        
-        return product
     
     def get_variants(self) -> List["Product"]:
         base_id = self.id if self.is_base else self.variant_of_id
@@ -398,11 +386,31 @@ class Addon(db.Model):
         if "id" in kwargs:
             raise KeyError("Invalid ID key found")
         
+        if kwargs['type'] == "MANUAL_SUPPLIER":
+            kwargs['type'] = "SUPPLIER"
+            default_list = kwargs.pop('default_list')
+            addon = cls(**kwargs)
+            db.session.add(addon)
+            db.session.flush()
+            last_id = addon.id
+            for i in range(len(default_list)):
+                default_list[i]["data"]["addon_id"] = last_id
+            if not set_defaults(default_list):
+                raise ValueError(f"Defaults for Addon: {kwargs['name']} failed to set")
+            else:
+                log.info(f"Finished setting defaults for {kwargs['name']}")
+            db.session.commit()
+            return addon
+        
         addon = cls(**kwargs)
         db.session.add(addon)
         db.session.flush()
         
         last_id = addon.id
+
+        log.debug(f"Addon type: {kwargs['type']}")
+        log.debug(f"Addon name: {kwargs['name']}")
+        log.debug(f"Addon id: {last_id}")
         
         addon_path: Path | None = None
         module_name = ""
@@ -418,6 +426,9 @@ class Addon(db.Model):
         elif kwargs['type'] == "PAYMENT":
             addon_path = Path('app') / 'addons' / 'payments' / kwargs['name'].lower()
             module_name = f"app.addons.payments.{kwargs['name'].lower()}"
+
+        log.debug(f"Addon path: {addon_path}")
+        log.debug(f"Module name: {module_name}")
         
         if addon_path:
             spec = importlib.util.spec_from_file_location(
@@ -445,7 +456,7 @@ class ConfigData(db.Model):
     __tablename__ = 'setup_table'
     
     id = Column(Integer, primary_key=True)
-    key = Column(String, nullable=False, unique=True)
+    key = Column(String, nullable=False)
     _value = Column('value', Text, nullable=False)  # Store encrypted value here
     type = Column(String, default='TEXT', server_default='TEXT')
     description = Column(Text, nullable=True)
@@ -535,7 +546,6 @@ class Config:
             configs = ConfigData.query.filter_by(addon_id=None).all()
         else:
             configs = ConfigData.query.filter_by(addon_id=self._addon_id).all()
-        
         if not configs:
             raise ValueError(f"Config data for {'addon_id:' + str(self._addon_id) if self._addon_id else 'site'} not found, check defaults.")
         
@@ -645,26 +655,25 @@ def set_defaults(default_list: List[Dict[str, Any]]) -> bool:
                     objects = query.all()
                 else:
                     objects = cls_.query.all()
-                
                 exists = False
                 if objects:
                     for set_object in objects:
                         if getattr(set_object, entry["key"], None) == entry["value"]:
                             exists = True
-                
                 if exists:
                     continue
                 
                 object_data = entry["data"].copy()
                 object_data[entry["key"]] = entry["value"]
-                
                 # Create new object
                 # Special handling for ConfigData to ensure encryption works properly
                 if cls_ == ConfigData:
                     secure = object_data.pop('secure', False)
-                    key_val = object_data.pop(entry["key"])
+                    key_val = object_data.pop("value")
                     new_obj = cls_(secure=secure, **object_data)
                     new_obj.value = key_val  # This will encrypt if secure=True
+                elif cls_ == Addon:
+                    new_obj = cls_.new(**object_data)
                 else:
                     new_obj = cls_(**object_data)
                 

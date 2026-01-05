@@ -44,7 +44,10 @@ def sync_product(printful_data):
     except Exception:
         raise
 
-
+addon_data = {
+    "name": "printful",
+    "type": "SUPPLIER"
+}
 default_list = [
     {
         "object_name": "SETUP",
