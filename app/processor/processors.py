@@ -58,9 +58,7 @@ def check_products(product_data: List[Dict[str, Any]], supplier_id: int, addon_s
 
         db_products = models.Product.query.filter_by(supplier_id=supplier_id).all()
         ids_in_data = [str(p["product_id"]) for p in product_data]
-        log.debug(f"IDs in data: {ids_in_data}")
         for product in db_products:
-            log.debug(f"Product: {product.product_id} - {product.product_id in ids_in_data}")
             if str(product.product_id) not in ids_in_data:
                 product.active = False
         db.session.commit()

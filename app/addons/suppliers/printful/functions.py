@@ -57,4 +57,40 @@ def get_product_details(token: str, product_id: str) -> Optional[Dict[str, Any]]
         log.error(f"Error during sync product details: {e}")
         return None
 
+def get_country_code(address: Dict[str, Any]) -> str:
+    try:
+        url = "https://api.printful.com/countries"
+        response = session.get(url = url)
+        response.raise_for_status()
+        countries = response.json()["result"]
+        country_code = None
+        state_code = None
+        for country in countries:
+            if country["name"] == address["country"] or country["code"] == address["country"]:
+                country_code = country["name"]
+                for state in country["states"]:
+                    if state["name"] == address["state"] or state["code"] == address["state"]:
+                        state_code = state["name"]
+                        break
+                break
+        return country_code, state_code
 
+    except Exception as e:
+        log.error(f"Error during get country code: {e}")
+        return None
+
+def get_shipping_rates(recipient_data: Dict[str, Any], items: List[Dict[str, Any]], currency: str, token: str) -> Dict[str, Any]:
+    try:
+        header = {
+            "Authorization" : f"Bearer {token}"
+        }
+        url = "https://api.printful.com/shipping/rates"
+        data = {
+            "recipient": recipient_data,
+            "items": items,
+            "currency": currency,
+        }
+        response = session.post(url = url, headers = header, json = data)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:

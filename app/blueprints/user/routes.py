@@ -16,7 +16,7 @@ from . import forms
 from app.models import models
 from app.database import db
 from app.utils import site_config 
-
+from app import processor
 import bcrypt
 from sqlalchemy.exc import IntegrityError
 from typing import Any, Dict, List
@@ -175,6 +175,7 @@ def cart() -> str:
 @bp.route("/checkout")
 @login_required
 def checkout() -> str:
+    checkout_data = processor.cart_to_checkout(current_user.id)
     return render_template(
         "user/checkout.html",
         site = site_config.get_config("site_config"),

@@ -99,16 +99,17 @@ class Address(db.Model):
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey('user_table.id'), nullable=False)
     type = Column(String, default='SHIPPING', server_default='SHIPPING')
-    street = Column(String, nullable=False)
+    address1 = Column(String, nullable=False)
+    address2 = Column(String, nullable=True)
     city = Column(String, nullable=False)
-    state = Column(String, nullable=True)
+    state_code = Column(String, nullable=True)
     postal_code = Column(String, nullable=False)
-    country = Column(String, nullable=True)
+    country_code = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, server_default=func.now())
     updated_at = Column(DateTime, onupdate=datetime.utcnow, server_default=func.now())
     
     __table_args__ = (
-        CheckConstraint("type IN ('SHIPPING', 'BILLING')", name='check_address_type'),
+        CheckConstraint("type IN ('SHIPPING', 'BILLING', 'OTHER')", name='check_address_type'),
     )
 
 
